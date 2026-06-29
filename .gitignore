@@ -1,0 +1,36 @@
+# dependencies
+node_modules/
+.pnpm-store/
+.pnp
+.pnp.*
+
+# environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# builds and caches
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# local/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# secrets
+*.pem
