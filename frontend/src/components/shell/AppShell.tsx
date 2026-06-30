@@ -125,7 +125,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
 
           <a
-            href="https://github.com"
+            href="https://github.com/ymlxb/YM-Ai-make"
             target="_blank"
             rel="noreferrer"
             className="hidden h-9 items-center gap-2 rounded-lg border border-[#dfe5ef] bg-white px-3 text-xs font-medium text-[#334155] shadow-sm transition hover:border-[#cbd5e1] hover:bg-[#f8fafc] lg:flex"
