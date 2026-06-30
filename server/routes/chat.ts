@@ -7,6 +7,7 @@ import {
   MockConfig,
 } from "../config/mock.js";
 import { NODE_HANDLERS } from "../config/chat.js";
+import { generateChatAnswer } from "../services/chat/answer.js";
 
 const router = express.Router();
 
@@ -93,13 +94,20 @@ router.post("/", async (req: Request, res: Response) => {
       }
 
       const eventType = handler.type;
-      const payload = output[handler.key];
+      let payload = output[handler.key];
 
       if (payload === undefined) {
         console.warn(
           `Skipping ${nodeName}: missing output key "${handler.key}"`,
         );
         continue;
+      }
+
+      if (nodeName === "analysisNode" && output.skipGeneration === true) {
+        payload = {
+          ...payload,
+          skipGeneration: true,
+        };
       }
 
       // 构造 SSE 消息
@@ -113,6 +121,22 @@ router.post("/", async (req: Request, res: Response) => {
       // 立即刷新缓冲区 (如果环境支持 flush)
       if ((res as any).flush) {
         (res as any).flush();
+      }
+
+      if (nodeName === "analysisNode" && output.skipGeneration === true) {
+        const answer = await generateChatAnswer({
+          messages,
+          analysis: output.analysis,
+        });
+        res.write(
+          `data: ${JSON.stringify({
+            type: "answer",
+            data: { content: answer },
+          })}\n\n`,
+        );
+        if ((res as any).flush) {
+          (res as any).flush();
+        }
       }
     }
 

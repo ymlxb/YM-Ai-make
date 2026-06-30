@@ -30,6 +30,7 @@ export function useChat() {
     messages,
     isLoading,
     addMessage,
+    updateMessageContent,
     setLoading,
     addThought,
     updateThought,
@@ -170,6 +171,12 @@ export function useChat() {
 
             if (type === "done") return;
 
+            if (type === "answer") {
+              const payload = data as { content?: string };
+              updateMessageContent(assistantId, payload.content || "");
+              return;
+            }
+
             if (type === "error") {
               const payload = data as { message?: string };
               addThought(assistantId, {
@@ -269,7 +276,14 @@ export function useChat() {
 
             // 查找并启动下一个步骤
             const nextType = NEXT_STEP_MAP[type];
-            if (nextType && nextType !== "done") {
+            const shouldSkipNext =
+              type === "analysis" &&
+              typeof data === "object" &&
+              data !== null &&
+              "skipGeneration" in data &&
+              (data as { skipGeneration?: boolean }).skipGeneration === true;
+
+            if (nextType && nextType !== "done" && !shouldSkipNext) {
               // 如果下一个步骤是 app（应用组装），设置组装状态
               if (nextType === "app") {
                 setIsAssembling(true);
@@ -307,6 +321,7 @@ export function useChat() {
     },
     [
       addMessage,
+      updateMessageContent,
       setLoading,
       archiveThoughts,
       addThought,

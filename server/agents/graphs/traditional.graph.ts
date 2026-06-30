@@ -43,6 +43,15 @@ import { tryExecuteMock } from "../utils/mock.js";
 
 const checkpointer = new MemorySaver();
 
+const routeAfterAnalysis = (state: typeof GraphState.State) => {
+  if (state.skipGeneration) {
+    console.log("[MainGraph] skipGeneration=true, ending traditional flow.");
+    return END;
+  }
+
+  return "intentNode";
+};
+
 // 使用 Annotation.Root 显式定义状态
 // 这解决了 LangGraph JS 在 StateGraph(ZodSchema) 模式下 Reducer 不生效的问题
 const GraphState = Annotation.Root({
@@ -207,7 +216,10 @@ export function buildTraditionalAgent() {
 
     // 编排流程
     .addEdge(START, "analysisNode")
-    .addEdge("analysisNode", "intentNode")
+    .addConditionalEdges("analysisNode", routeAfterAnalysis, [
+      "intentNode",
+      END,
+    ])
     .addEdge("intentNode", "capabilityNode")
     .addEdge("capabilityNode", "uiNode")
     .addEdge("uiNode", "componentNode")

@@ -111,6 +111,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),
 
+  updateMessageContent: (messageId, content) =>
+    set((state) => ({
+      messages: state.messages.map((message) =>
+        message.id === messageId ? { ...message, content } : message,
+      ),
+    })),
+
   setLoading: (loading) => set({ isLoading: loading }),
 
   addThought: (messageId, thought) =>

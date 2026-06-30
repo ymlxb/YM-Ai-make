@@ -111,6 +111,7 @@ export interface ChatState {
 
   /** Actions */
   addMessage: (message: ChatMessage) => void;
+  updateMessageContent: (messageId: string, content: string) => void;
   setLoading: (loading: boolean) => void;
 
   /** ThoughtChain Actions */
