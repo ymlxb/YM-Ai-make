@@ -1,104 +1,101 @@
 "use client";
 
 import { Bubble, Sender } from "@ant-design/x";
-import { useChat } from "@/hooks/useChat";
-import { useChatStore } from "@/store/chatStore";
-import { Plus, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import {
+  FileCode2,
+  ImagePlus,
+  Layers3,
+  Lightbulb,
+  Paperclip,
+  Sparkles,
+  X,
+} from "lucide-react";
+import { useChat } from "@/hooks/useChat";
+import { useChatStore } from "@/store/chatStore";
 import { IMG_UPLOAD_URL } from "@/constants/config";
 import { ThoughtChain } from "./ThoughtChain";
 import { VersionCard } from "./VersionCard";
 
-/**
- * ChatPanel (Ant Design X version)
- *
- * 职责：
- * - 使用 antd/x 组件组织 AI Chat UI
- * - 不关心消息如何产生
- * - 不关心 Preview / Sandpack
- */
+type AttachedFile = {
+  id: string;
+  url: string;
+  name: string;
+  type: "image" | "design";
+};
+
+const examplePrompts = [
+  "生成一个 SaaS 数据看板，包含图表、筛选器、侧边栏和指标卡片。",
+  "做一个移动端旅行规划应用，包含行程卡片、预算统计和目的地推荐。",
+  "生成一个 AI 简历优化工具的官网首页，风格专业、现代、有转化按钮。",
+];
+
 export function ChatPanel() {
   const { messages, isLoading, sendMessage } = useChat();
-  const messageThoughts = useChatStore((state) => state.messageThoughts); // ✨ 获取 thoughts 映射
-  const versions = useChatStore((state) => state.versions); // 获取版本历史
-  const projectName = useChatStore((state) => state.projectName); // 获取项目名称
+  const messageThoughts = useChatStore((state) => state.messageThoughts);
+  const versions = useChatStore((state) => state.versions);
+  const projectName = useChatStore((state) => state.projectName);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [attachedFiles, setAttachedFiles] = useState<
-    Array<{ id: string; url: string; name: string; type: "image" | "design" }>
-  >([]);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<"info" | "warning" | "error">(
     "info",
   );
-  const [inputValue, setInputValue] = useState(""); // ✨ 添加输入框状态
+  const [inputValue, setInputValue] = useState("");
 
   useEffect(() => {
-    if (toastMessage) {
-      const timer = setTimeout(() => {
-        setToastMessage(null);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
+    if (!toastMessage) return;
+    const timer = setTimeout(() => setToastMessage(null), 3000);
+    return () => clearTimeout(timer);
   }, [toastMessage]);
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages, isLoading, attachedFiles]);
+
   const showToast = (
-    msg: string,
+    message: string,
     type: "info" | "warning" | "error" = "info",
   ) => {
-    setToastMessage(msg);
+    setToastMessage(message);
     setToastType(type);
   };
 
-  // 自动滚动到底部
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: "smooth",
-      });
-    }
-  }, [messages, isLoading, attachedFiles]);
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
-    // Reset input
-    e.target.value = "";
+    event.target.value = "";
 
-    // 判断文件类型
     const ext = file.name.toLowerCase().split(".").pop() || "";
     const isDesignFile = ["fig", "sketch", "xd", "psd"].includes(ext);
-
-    // ⚠️ 互斥策略：检测已上传的文件类型
-    const hasDesignFile = attachedFiles.some((f) => f.type === "design");
-    const hasImageFile = attachedFiles.some((f) => f.type === "image");
+    const hasDesignFile = attachedFiles.some((item) => item.type === "design");
+    const hasImageFile = attachedFiles.some((item) => item.type === "image");
 
     if (isDesignFile && hasImageFile) {
-      showToast("不能同时上传设计文件和图片，请先移除已上传的图片", "warning");
+      showToast("请使用 1 个设计文件，或最多 3 张图片，不要混合上传。", "warning");
       return;
     }
 
     if (!isDesignFile && hasDesignFile) {
-      showToast(
-        "不能同时上传图片和设计文件，请先移除已上传的设计文件",
-        "warning",
-      );
+      showToast("请先移除设计文件，再添加图片参考。", "warning");
       return;
     }
 
-    // 限制数量：设计文件最多1个，图片最多3个
     if (isDesignFile && hasDesignFile) {
-      showToast("最多只能上传 1 个设计文件", "warning");
+      showToast("最多只能上传 1 个设计文件。", "warning");
       return;
     }
 
     if (!isDesignFile && attachedFiles.length >= 3) {
-      showToast("最多只能上传 3 张图片", "warning");
+      showToast("最多只能上传 3 张图片。", "warning");
       return;
     }
 
@@ -107,57 +104,57 @@ export function ChatPanel() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch(IMG_UPLOAD_URL, {
+      const response = await fetch(IMG_UPLOAD_URL, {
         method: "POST",
         body: formData,
       });
 
-      if (!res.ok) {
+      if (!response.ok) {
         throw new Error("Upload failed");
       }
 
-      const data = await res.json();
-      const fullUrl = data.url; // OSS 返回的已经是完整 URL
-
-      console.log("Uploaded file:", {
-        name: file.name,
-        url: fullUrl,
-        type: isDesignFile ? "design" : "image",
-      });
-
-      setAttachedFiles((prev) => [
-        ...prev,
+      const data = await response.json();
+      setAttachedFiles((current) => [
+        ...current,
         {
           id: crypto.randomUUID(),
-          url: fullUrl,
+          url: data.url,
           name: file.name,
           type: isDesignFile ? "design" : "image",
         },
       ]);
-    } catch (err) {
-      console.error("Upload error:", err);
-      showToast("文件上传失败，请重试", "error");
+    } catch (error) {
+      console.error("Upload error:", error);
+      showToast("上传失败，请重试。", "error");
     } finally {
       setIsUploading(false);
     }
   };
 
-  const removeAttachment = (id: string) => {
-    setAttachedFiles((prev) => prev.filter((f) => f.id !== id));
+  const submitPrompt = (value: string) => {
+    if (!value.trim() && attachedFiles.length === 0) return;
+
+    const attachments = attachedFiles.map((file) => ({
+      type: "image" as const,
+      url: file.url,
+    }));
+
+    sendMessage(value || "请根据上传的参考素材生成应用。", attachments);
+    setAttachedFiles([]);
+    setInputValue("");
   };
 
   return (
-    <div className="flex h-full flex-col relative">
-      {/* Toast Notification */}
+    <div className="relative flex h-full min-h-0 flex-col bg-white">
       {toastMessage && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
+        <div className="absolute left-1/2 top-4 z-50 -translate-x-1/2">
           <div
-            className={`text-white text-sm px-4 py-2.5 rounded-lg shadow-lg ${
+            className={`rounded-lg px-4 py-2.5 text-sm text-white shadow-lg ${
               toastType === "warning"
-                ? "bg-orange-500"
+                ? "bg-amber-500"
                 : toastType === "error"
                   ? "bg-red-500"
-                  : "bg-gray-800"
+                  : "bg-[#172033]"
             }`}
           >
             {toastMessage}
@@ -165,238 +162,135 @@ export function ChatPanel() {
         </div>
       )}
 
-      {/* Fullscreen Image Preview */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-8 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-8 backdrop-blur-sm"
           onClick={() => setPreviewImage(null)}
         >
           <div
             className="relative max-h-full max-w-full"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
           >
             <button
+              type="button"
               onClick={() => setPreviewImage(null)}
-              className="absolute -top-12 right-0 p-2 text-white/70 hover:text-white transition-colors"
+              className="absolute -top-12 right-0 rounded-full p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
+              aria-label="Close image preview"
             >
               <X size={24} />
             </button>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={previewImage}
-              alt="Preview"
-              className="max-h-[90vh] max-w-[90vw] rounded-lg shadow-2xl object-contain"
+              alt="附件预览"
+              className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
             />
           </div>
         </div>
       )}
 
-      {/* Hidden File Input */}
       <input
-        type="file"
         ref={fileInputRef}
+        type="file"
         hidden
         accept="image/*,.fig,.sketch,.xd,.psd"
         onChange={handleFileSelect}
       />
 
-      {/* Chat messages */}
-
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
-        {messages.map((msg) => (
-          <div key={msg.id} className="mb-4">
-            {/* 只在消息有内容或附件时才显示 Bubble */}
-            {(msg.content || msg.attachments?.length) && (
-              <Bubble.List
-                items={[
-                  {
-                    key: msg.id,
-                    role: msg.role === "user" ? "user" : "model",
-                    placement: msg.role === "user" ? "end" : "start",
-                    // 图片预览需要使用 content 属性传入 ReactNode
-                    content: (
-                      <div className="flex flex-col gap-2">
-                        {msg.attachments?.map((att) => {
-                          // 从 URL 判断文件类型（发送后的消息只有 url）
-                          const isDesignFile = att.url.includes("/designs/");
-
-                          if (isDesignFile) {
-                            // 设计文件：显示文件卡片
-                            const fileName =
-                              att.url.split("/").pop() || "设计文件";
-                            const ext =
-                              fileName.split(".").pop()?.toLowerCase() || "";
-
-                            // 根据文件类型设置颜色
-                            const colorMap: Record<
-                              string,
-                              {
-                                gradient: string;
-                                icon: string;
-                                label: string;
-                                shortText: string;
-                              }
-                            > = {
-                              fig: {
-                                gradient: "from-purple-500 to-pink-500",
-                                icon: "text-purple-600",
-                                label: "Figma",
-                                shortText: "FIG",
-                              },
-                              sketch: {
-                                gradient: "from-yellow-500 to-orange-500",
-                                icon: "text-orange-600",
-                                label: "Sketch",
-                                shortText: "SKT",
-                              },
-                              xd: {
-                                gradient: "from-pink-500 to-rose-500",
-                                icon: "text-pink-600",
-                                label: "Adobe XD",
-                                shortText: "XD",
-                              },
-                              psd: {
-                                gradient: "from-blue-500 to-cyan-500",
-                                icon: "text-blue-600",
-                                label: "Photoshop",
-                                shortText: "PSD",
-                              },
-                            };
-                            const colors = colorMap[ext] || colorMap.fig;
-
-                            return (
-                              <div
-                                key={att.url}
-                                className="max-w-[300px] p-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 group cursor-default"
-                              >
-                                <div className="flex items-start gap-3">
-                                  <div
-                                    className={`w-12 h-12 rounded-lg bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-sm flex-shrink-0`}
-                                  >
-                                    <span className="text-white font-bold text-xs">
-                                      {colors.shortText}
-                                    </span>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-semibold text-gray-900 truncate mb-0.5">
-                                      {decodeURIComponent(fileName)}
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                      <span
-                                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors.icon} bg-white border border-gray-200`}
-                                      >
-                                        {colors.label}
-                                      </span>
-                                      <span className="text-xs text-gray-500">
-                                        设计文件
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
-
-                          // 图片：显示图片预览
-                          return (
-                            <div
-                              key={att.url}
-                              className="max-w-[300px] rounded-lg overflow-hidden border border-gray-200 cursor-zoom-in hover:opacity-95 transition-opacity"
-                              onClick={() => setPreviewImage(att.url)}
-                            >
-                              <Image
-                                src={att.url}
-                                alt="attachment"
-                                width={0}
-                                height={0}
-                                sizes="100vw"
-                                style={{ width: "100%", height: "auto" }}
-                                unoptimized
-                              />
-                            </div>
-                          );
-                        })}
-                        <div className="whitespace-pre-wrap">{msg.content}</div>
-                      </div>
-                    ),
-                  },
-                ]}
-              />
-            )}
-
-            {/* Thought Chain Display - 仅为assistant消息显示 */}
-            {msg.role === "assistant" &&
-              messageThoughts[msg.id] &&
-              messageThoughts[msg.id].length > 0 && (
-                <div className="mt-2 flex justify-start pl-2">
-                  <ThoughtChain thoughts={messageThoughts[msg.id]} />
-                </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+        {messages.length === 0 ? (
+          <EmptyState
+            onSelectPrompt={(prompt) => {
+              setInputValue(prompt);
+            }}
+          />
+        ) : (
+          messages.map((message) => (
+            <div key={message.id} className="mb-4">
+              {(message.content || message.attachments?.length) && (
+                <Bubble.List
+                  items={[
+                    {
+                      key: message.id,
+                      role: message.role === "user" ? "user" : "model",
+                      placement: message.role === "user" ? "end" : "start",
+                      content: (
+                        <div className="flex max-w-full flex-col gap-2">
+                          {message.attachments?.map((attachment) => (
+                            <AttachmentPreview
+                              key={attachment.url}
+                              url={attachment.url}
+                              onPreview={setPreviewImage}
+                            />
+                          ))}
+                          <div className="whitespace-pre-wrap text-sm leading-6">
+                            {message.content}
+                          </div>
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
               )}
 
-            {/* Version Card Display - 为每个assistant消息显示对应版本 */}
-            {msg.role === "assistant" &&
-              (() => {
-                // 获取所有assistant消息
-                const assistantMessages = messages.filter(
-                  (m) => m.role === "assistant",
-                );
-                // 找到当前消息在assistant消息列表中的索引
-                const messageIndex = assistantMessages.findIndex(
-                  (m) => m.id === msg.id,
-                );
-                // 获取对应索引的版本
-                const correspondingVersion = versions[messageIndex];
+              {message.role === "assistant" &&
+                messageThoughts[message.id]?.length > 0 && (
+                  <div className="mt-2 flex justify-start pl-2">
+                    <ThoughtChain thoughts={messageThoughts[message.id]} />
+                  </div>
+                )}
 
-                // 如果找到了对应的版本，显示版本卡片
-                if (correspondingVersion) {
+              {message.role === "assistant" &&
+                (() => {
+                  const assistantMessages = messages.filter(
+                    (item) => item.role === "assistant",
+                  );
+                  const messageIndex = assistantMessages.findIndex(
+                    (item) => item.id === message.id,
+                  );
+                  const version = versions[messageIndex];
+
+                  if (!version) return null;
                   return (
                     <div className="mt-2 w-full px-2">
-                      <VersionCard
-                        version={correspondingVersion}
-                        projectName={projectName}
-                      />
+                      <VersionCard version={version} projectName={projectName} />
                     </div>
                   );
-                }
-                return null;
-              })()}
-          </div>
-        ))}
+                })()}
+            </div>
+          ))
+        )}
       </div>
 
-      {/* Prompt input */}
-      <div className="shrink-0 border-t border-gray-200 p-2">
-        {/* Preview Area */}
+      <div className="shrink-0 border-t border-[#e5eaf2] bg-[#fbfdff] p-3">
         {attachedFiles.length > 0 && (
-          <div className="flex gap-2 mb-2 px-2 pt-2 overflow-x-auto">
+          <div className="mb-3 flex gap-2 overflow-x-auto px-1">
             {attachedFiles.map((file) => (
-              <div key={file.id} className="relative group shrink-0">
+              <div key={file.id} className="group relative shrink-0">
                 {file.type === "image" ? (
                   <Image
                     src={file.url}
                     alt={file.name}
                     width={64}
                     height={64}
-                    className="h-16 w-16 object-cover rounded-md border border-gray-200 cursor-zoom-in"
+                    className="h-16 w-16 cursor-zoom-in rounded-lg border border-[#dfe5ef] object-cover"
                     unoptimized
                     onClick={() => setPreviewImage(file.url)}
                   />
                 ) : (
-                  <div className="h-16 w-16 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-sm border border-purple-300">
-                    <span className="text-white font-bold text-xs">
-                      {file.name.toLowerCase().endsWith(".fig")
-                        ? "FIG"
-                        : file.name.toLowerCase().endsWith(".sketch")
-                          ? "SKT"
-                          : file.name.toLowerCase().endsWith(".xd")
-                            ? "XD"
-                            : "PSD"}
-                    </span>
+                  <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-[#bfdbfe] bg-[#eaf2ff] text-xs font-bold text-[#1d4ed8]">
+                    {file.name.split(".").pop()?.toUpperCase() || "FILE"}
                   </div>
                 )}
                 <button
-                  onClick={() => removeAttachment(file.id)}
-                  className="absolute -top-1 -right-1 bg-gray-900 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  type="button"
+                  onClick={() =>
+                    setAttachedFiles((current) =>
+                      current.filter((item) => item.id !== file.id),
+                    )
+                  }
+                  className="absolute -right-1 -top-1 rounded-full bg-[#111827] p-0.5 text-white opacity-0 transition group-hover:opacity-100"
+                  aria-label="Remove attachment"
                 >
                   <X size={12} />
                 </button>
@@ -410,59 +304,154 @@ export function ChatPanel() {
           onChange={setInputValue}
           prefix={
             <button
-              className="text-gray-500 hover:text-gray-700 p-1 rounded-md hover:bg-gray-100 transition-colors"
-              onClick={() => {
-                const hasDesignFile = attachedFiles.some(
-                  (f) => f.type === "design",
-                );
-                const hasImageFile = attachedFiles.some(
-                  (f) => f.type === "image",
-                );
-
-                // 检测是否达到上限
-                if (hasDesignFile) {
-                  showToast("最多只能上传 1 个设计文件", "warning");
-                  return;
-                }
-
-                if (hasImageFile && attachedFiles.length >= 3) {
-                  showToast("最多只能上传 3 张图片", "warning");
-                  return;
-                }
-
-                fileInputRef.current?.click();
-              }}
+              type="button"
+              className="rounded-lg p-1 text-[#64748b] transition hover:bg-[#eef2f7] hover:text-[#1f2937]"
+              onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
+                  title="上传图片或设计文件"
             >
               {isUploading ? (
-                <div className="animate-spin h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full" />
+                <span className="block h-4 w-4 animate-spin rounded-full border-2 border-[#94a3b8] border-t-transparent" />
               ) : (
-                <Plus size={18} />
+                <Paperclip size={18} />
               )}
             </button>
           }
-          placeholder="今天你想构建什么样的应用？"
+          placeholder="描述一个看板、官网、移动应用，或粘贴 Figma 链接..."
           loading={isLoading}
-          onSubmit={(value) => {
-            if (!value?.trim() && attachedFiles.length === 0) return;
-
-            // Map ui attachments to message attachments
-            const msgAttachments = attachedFiles.map((f) => ({
-              type: "image" as const,
-              url: f.url,
-            }));
-
-            sendMessage(
-              value || " ",
-              msgAttachments.length > 0 ? msgAttachments : undefined,
-            );
-
-            // Clear attachments and input
-            setAttachedFiles([]);
-            setInputValue(""); // ✨ 清空输入框
-          }}
+          onSubmit={submitPrompt}
         />
       </div>
     </div>
+  );
+}
+
+function EmptyState({
+  onSelectPrompt,
+}: {
+  onSelectPrompt: (prompt: string) => void;
+}) {
+  return (
+    <div className="flex min-h-full flex-col justify-between gap-6 py-2">
+      <div>
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#bfdbfe] bg-[#eaf2ff] px-3 py-1 text-xs font-medium text-[#1d4ed8]">
+          <Sparkles className="h-3.5 w-3.5" />
+          作品演示已就绪
+        </div>
+        <h3 className="text-2xl font-semibold tracking-[0] text-[#111827]">
+          用一句话生成一个 React 应用。
+        </h3>
+        <p className="mt-3 text-sm leading-6 text-[#64748b]">
+          描述你想做的产品，也可以上传截图或粘贴 Figma 链接。系统会展示生成思路、
+          组装项目文件，并在右侧打开实时预览。
+        </p>
+      </div>
+
+      <div className="grid gap-3">
+        <Capability
+          icon={<Lightbulb className="h-4 w-4" />}
+          title="从需求到产品"
+          description="自动分析意图、规划应用结构，并生成 UI 与业务代码。"
+        />
+        <Capability
+          icon={<ImagePlus className="h-4 w-4" />}
+          title="支持视觉参考"
+          description="可以上传截图或设计文件，让生成结果更贴近目标界面。"
+        />
+        <Capability
+          icon={<FileCode2 className="h-4 w-4" />}
+          title="可预览可导出"
+          description="右侧实时查看效果，切换代码视图后可以下载完整项目。"
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-medium uppercase text-[#64748b]">
+          试试这些示例
+        </p>
+        <div className="space-y-2">
+          {examplePrompts.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              onClick={() => onSelectPrompt(prompt)}
+              className="w-full rounded-xl border border-[#dfe5ef] bg-white px-3 py-2.5 text-left text-sm leading-5 text-[#334155] transition hover:border-[#bfdbfe] hover:bg-[#f8fbff]"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Capability({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex gap-3 rounded-xl border border-[#e5eaf2] bg-[#fbfdff] p-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#2563eb] shadow-sm">
+        {icon}
+      </div>
+      <div>
+        <div className="text-sm font-semibold text-[#111827]">{title}</div>
+        <div className="mt-0.5 text-xs leading-5 text-[#64748b]">
+          {description}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AttachmentPreview({
+  url,
+  onPreview,
+}: {
+  url: string;
+  onPreview: (url: string) => void;
+}) {
+  const isDesignFile = url.includes("/designs/");
+
+  if (isDesignFile) {
+    const fileName = decodeURIComponent(url.split("/").pop() || "design file");
+    return (
+      <div className="max-w-[300px] rounded-xl border border-[#dfe5ef] bg-[#f8fafc] p-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#eaf2ff] text-[#1d4ed8]">
+            <Layers3 className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-[#111827]">
+              {fileName}
+            </div>
+            <div className="text-xs text-[#64748b]">设计参考文件</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="max-w-[300px] overflow-hidden rounded-xl border border-[#dfe5ef] transition hover:opacity-90"
+      onClick={() => onPreview(url)}
+    >
+      <Image
+        src={url}
+        alt="附件"
+        width={300}
+        height={180}
+        className="h-auto w-full object-cover"
+        unoptimized
+      />
+    </button>
   );
 }

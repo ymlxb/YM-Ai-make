@@ -1,24 +1,12 @@
-// 预览工具栏组件
 "use client";
 
 import { useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Maximize2, Minimize2 } from "lucide-react";
+import { toast } from "sonner";
 import { useSandpackStore } from "@/store/sandpackStore";
 import { downloadGeneratedCode } from "@/lib/downloadCode";
-import { toast } from "sonner";
 import type { PreviewToolbarProps } from "@/types/components";
 
-/**
- * PreviewToolbar
- *
- * 职责：
- * - 提供 Preview 区域的布局控制（全屏 / 退出全屏）
- * - 提供代码下载功能
- *
- * 不负责：
- * - 不管理状态
- * - 不知道 Sandpack / Chat
- */
 export function PreviewToolbar({
   isFullScreen,
   onEnterFullScreen,
@@ -26,8 +14,6 @@ export function PreviewToolbar({
 }: PreviewToolbarProps) {
   const { generatedFiles, viewMode } = useSandpackStore();
   const [isDownloading, setIsDownloading] = useState(false);
-
-  // 从全局获取 templateFiles（由 SandpackView 设置）
   const templateFiles =
     typeof window !== "undefined" ? window.__templateFiles || {} : {};
   const hasDownloadableFiles =
@@ -35,61 +21,50 @@ export function PreviewToolbar({
 
   const handleDownload = async () => {
     if (!hasDownloadableFiles) {
-      toast.error("暂无可下载的代码");
+      toast.error("代码仍在加载中。");
       return;
     }
 
     setIsDownloading(true);
     try {
-      // 如果没有生成代码，就只下载模板代码
-      const filesToDownload = generatedFiles || templateFiles;
-      await downloadGeneratedCode(filesToDownload, templateFiles);
-      toast.success("代码下载成功");
+      await downloadGeneratedCode(generatedFiles || templateFiles, templateFiles);
+      toast.success("项目已下载。");
     } catch (error) {
       console.error("下载失败:", error);
-      toast.error("下载失败，请重试");
+      toast.error("下载失败，请重试。");
     } finally {
       setIsDownloading(false);
     }
   };
 
-  const isDownloadDisabled = !hasDownloadableFiles || isDownloading;
-
   return (
-    <div className="flex items-center gap-2">
-      {/* 下载代码按钮 - 只在代码视图显示 */}
+    <div className="flex items-center gap-2 rounded-xl border border-[#dfe5ef] bg-white/95 p-1 shadow-lg backdrop-blur">
       {viewMode === "code" && (
         <button
           type="button"
           onClick={handleDownload}
-          disabled={isDownloadDisabled}
-          className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
-          title={!hasDownloadableFiles ? "正在加载模板..." : "下载代码"}
+          disabled={!hasDownloadableFiles || isDownloading}
+          className="flex h-8 items-center gap-2 rounded-lg px-2.5 text-xs font-medium text-[#334155] transition hover:bg-[#f1f5f9] disabled:cursor-not-allowed disabled:opacity-50"
+          title="下载项目"
         >
-          <Download className="h-3.5 w-3.5" />
-          {isDownloading ? "下载中..." : "下载代码"}
+          <Download className="h-4 w-4" />
+          {isDownloading ? "导出中" : "导出"}
         </button>
       )}
 
-      {!isFullScreen && (
-        <button
-          type="button"
-          onClick={onEnterFullScreen}
-          className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900"
-        >
-          全屏
-        </button>
-      )}
-
-      {isFullScreen && (
-        <button
-          type="button"
-          onClick={onExitFullScreen}
-          className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900"
-        >
-          退出全屏
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={isFullScreen ? onExitFullScreen : onEnterFullScreen}
+        className="flex h-8 w-8 items-center justify-center rounded-lg text-[#334155] transition hover:bg-[#f1f5f9]"
+        title={isFullScreen ? "退出专注模式" : "专注预览"}
+        aria-label={isFullScreen ? "退出专注模式" : "专注预览"}
+      >
+        {isFullScreen ? (
+          <Minimize2 className="h-4 w-4" />
+        ) : (
+          <Maximize2 className="h-4 w-4" />
+        )}
+      </button>
     </div>
   );
 }
