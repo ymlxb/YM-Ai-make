@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "tsx ./bin/www.ts",
-    "dev": "nodemon --exec tsx ./bin/www.ts"
+    "dev": "nodemon --exec tsx ./bin/www.ts",
+    "vercel-build": "echo Vercel serverless build"
   },
   "type": "module",
   "dependencies": {
@@ -26,7 +27,6 @@
     "langchain": "^1.2.7",
     "morgan": "~1.9.1",
     "multer": "^2.0.2",
-    "server": "link:",
     "zod": "^4.3.5"
   },
   "devDependencies": {
