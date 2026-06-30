@@ -5,6 +5,51 @@ import { tryExecuteMock } from "../../../../utils/mock.js";
 import { withRetry } from "../../../../utils/retry.js";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item): item is string => typeof item === "string");
+      }
+    } catch {
+      // Keep plain strings as a single item.
+    }
+
+    return [trimmed];
+  }
+
+  return [];
+}
+
+function normalizeIntentResult(result: any) {
+  return {
+    ...result,
+    product: {
+      ...result.product,
+      targetUsers: toStringArray(result.product?.targetUsers),
+    },
+    goals: {
+      ...result.goals,
+      primary: toStringArray(result.goals?.primary),
+      secondary:
+        result.goals?.secondary == null
+          ? null
+          : toStringArray(result.goals.secondary),
+    },
+    nonGoals: toStringArray(result.nonGoals),
+    assumptions:
+      result.assumptions == null ? null : toStringArray(result.assumptions),
+  };
+}
+
 export async function intentNode(state: any) {
   if (state.skipGeneration) {
     console.log("[IntentNode] skipGeneration=true, skipping.");
@@ -30,7 +75,15 @@ export async function intentNode(state: any) {
 
   // 3. 构建 Prompt
   const prompt = [
-    new SystemMessage(IntentPrompts),
+    new SystemMessage(
+      `${IntentPrompts}
+
+Important schema rule:
+Fields targetUsers, goals.primary, goals.secondary, nonGoals and assumptions must be real JSON arrays.
+Never output array fields as quoted JSON strings.
+Wrong: "assumptions": "[\\"A\\", \\"B\\"]"
+Correct: "assumptions": ["A", "B"]`,
+    ),
     new HumanMessage(contextMessage),
   ];
 
@@ -62,6 +115,6 @@ export async function intentNode(state: any) {
 
   // 5. 返回结果
   return {
-    intent: result,
+    intent: normalizeIntentResult(result),
   };
 }
