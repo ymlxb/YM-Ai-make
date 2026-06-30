@@ -15,6 +15,8 @@ let deepseekInstance: ChatOpenAI | null = null;
 let glmInstance: ChatOpenAI | null = null;
 let qwenVisionInstance: ChatOpenAI | null = null;
 
+const env = (key: string, fallback = "") => (process.env[key] || fallback).trim();
+
 /**
  * 获取 DeepSeek 主模型实例（用于大部分节点）
  * 支持 Function Calling，结构化输出能力强
@@ -22,12 +24,12 @@ let qwenVisionInstance: ChatOpenAI | null = null;
 export function getDeepSeekModel() {
   if (!deepseekInstance) {
     deepseekInstance = new ChatOpenAI({
-      model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
-      apiKey: process.env.DEEPSEEK_API_KEY,
+      model: env("DEEPSEEK_MODEL", "deepseek-v4-flash"),
+      apiKey: env("DEEPSEEK_API_KEY"),
       temperature: 0,
       maxTokens: 8192, // DeepSeek 最大支持 8K tokens
       configuration: {
-        baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
+        baseURL: env("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
       },
     });
   }
@@ -41,13 +43,13 @@ export function getDeepSeekModel() {
 export function getGLMModel() {
   if (!glmInstance) {
     glmInstance = new ChatOpenAI({
-      model: process.env.GLM_MODEL || "glm-4-flash",
-      apiKey: process.env.GLM_API_KEY,
+      model: env("GLM_MODEL", "glm-4.5-air"),
+      apiKey: env("GLM_API_KEY"),
       temperature: 0,
       maxTokens: 8192,
       configuration: {
         baseURL:
-          process.env.GLM_BASE_URL || "https://open.bigmodel.cn/api/paas/v4/",
+          env("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/"),
       },
     });
   }
@@ -61,14 +63,13 @@ export function getGLMModel() {
 export function getQwenVisionModel() {
   if (!qwenVisionInstance) {
     qwenVisionInstance = new ChatOpenAI({
-      model: process.env.QWEN_MODEL || "qwen-vl-max",
-      apiKey: process.env.QWEN_API_KEY,
+      model: env("QWEN_MODEL", "qwen-vl-max"),
+      apiKey: env("QWEN_API_KEY"),
       temperature: 0.1,
       maxTokens: 32768, // Qwen-VL-Max 支持 32K tokens
       configuration: {
         baseURL:
-          process.env.QWEN_BASE_URL ||
-          "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          env("QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
       },
     });
   }
@@ -80,7 +81,7 @@ export function getQwenVisionModel() {
  * 根据环境变量 MAIN_MODEL_PROVIDER 切换：deepseek | glm
  */
 export function getMainModel() {
-  const provider = process.env.MAIN_MODEL_PROVIDER || "deepseek";
+  const provider = env("MAIN_MODEL_PROVIDER", "glm");
 
   switch (provider.toLowerCase()) {
     case "glm":
@@ -117,5 +118,5 @@ export function getStructuredModel<T extends ZodType<any>>(schema: T) {
  * 获取当前主模型提供商名称
  */
 export function getMainModelProvider(): string {
-  return process.env.MAIN_MODEL_PROVIDER || "deepseek";
+  return env("MAIN_MODEL_PROVIDER", "glm");
 }
