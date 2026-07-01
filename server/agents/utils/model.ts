@@ -43,7 +43,7 @@ export function getDeepSeekModel() {
 export function getGLMModel() {
   if (!glmInstance) {
     glmInstance = new ChatOpenAI({
-      model: env("GLM_MODEL", "glm-4.5-air"),
+      model: env("GLM_MODEL", "glm-5.2"),
       apiKey: env("GLM_API_KEY"),
       temperature: 0,
       maxTokens: 8192,
