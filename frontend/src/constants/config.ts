@@ -7,7 +7,8 @@ export const PORTS = {
 };
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || `http://localhost:${PORTS.SERVER}`;
+  process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ||
+  `http://localhost:${PORTS.SERVER}`;
 // export const IMG_HOST_BASE_URL = `http://localhost:${PORTS.IMG_HOST}`; // 已废弃
 
 // 图床相关配置
