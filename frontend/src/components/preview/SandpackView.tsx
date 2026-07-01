@@ -16,6 +16,16 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getReactTS_Template } from "@/services/api";
 import { BuildingLoadingOverlay } from "./BuildingLoadingOverlay";
 
+const SANDPACK_BUNDLER_URL =
+  process.env.NEXT_PUBLIC_SANDPACK_BUNDLER_URL?.trim() || undefined;
+const SANDPACK_BUNDLER_TIMEOUT = Number.parseInt(
+  process.env.NEXT_PUBLIC_SANDPACK_BUNDLER_TIMEOUT ?? "120000",
+  10,
+);
+const TAILWIND_CDN_URL =
+  process.env.NEXT_PUBLIC_TAILWIND_CDN_URL?.trim() ||
+  "https://cdn.tailwindcss.com";
+
 // Client-only provider to prevent hydration mismatch
 const SandpackProvider = dynamic(
   () =>
@@ -98,7 +108,11 @@ export function SandpackView() {
       theme="light"
       files={files}
       options={{
-        externalResources: ["https://cdn.tailwindcss.com"],
+        bundlerURL: SANDPACK_BUNDLER_URL,
+        bundlerTimeOut: Number.isFinite(SANDPACK_BUNDLER_TIMEOUT)
+          ? SANDPACK_BUNDLER_TIMEOUT
+          : 120000,
+        externalResources: [TAILWIND_CDN_URL],
         visibleFiles: visibleFiles,
         activeFile: "/App.tsx",
       }}

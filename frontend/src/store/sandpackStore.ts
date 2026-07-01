@@ -4,6 +4,15 @@ import type { SandpackStore, SandpackFiles } from "@/types/store";
 // Re-export types for backward compatibility
 export type { SandpackFiles };
 
+const normalizeCodeContent = (content: string) =>
+  content
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/gi, "'")
+    .replace(/&amp;/g, "&");
+
 export const useSandpackStore = create<SandpackStore>((set) => ({
   viewMode: "preview",
   setViewMode: (mode) => set({ viewMode: mode }),
@@ -13,7 +22,7 @@ export const useSandpackStore = create<SandpackStore>((set) => ({
     // 转换为 Sandpack 格式: { "/App.tsx": "code" } -> { "/App.tsx": { code: "code" } }
     const sandpackFiles: SandpackFiles = {};
     Object.entries(files).forEach(([path, code]) => {
-      sandpackFiles[path] = { code };
+      sandpackFiles[path] = { code: normalizeCodeContent(code) };
     });
     set({ generatedFiles: sandpackFiles }); // ✨ 不立即关闭 loading，等 Sandpack 加载完成再关闭
   },

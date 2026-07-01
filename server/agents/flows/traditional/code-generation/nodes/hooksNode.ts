@@ -6,6 +6,77 @@ import { tryExecuteMock } from "../../../../utils/mock.js";
 import { withRetry } from "../../../../utils/retry.js";
 import { normalizeCodeFile } from "../../../../utils/codeNormalizer.js";
 
+function createFallbackHook(filePath: string, description = "") {
+  const hookName =
+    filePath
+      .split("/")
+      .pop()
+      ?.replace(/\.(ts|tsx)$/, "") || "useGeneratedData";
+
+  return normalizeCodeFile({
+    path: filePath,
+    content: `import { useEffect, useState } from 'react';
+
+export function ${hookName}() {
+  const [data, setData] = useState<unknown[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setData([]);
+    setLoading(false);
+  }, []);
+
+  return { data, loading };
+}
+`,
+    description:
+      description || "Fallback hook generated when AI hook generation fails.",
+  });
+}
+
+function pluralizeModelName(modelId: string) {
+  if (modelId.endsWith("y")) {
+    return `${modelId.slice(0, -1)}ies`;
+  }
+
+  if (modelId.endsWith("s")) {
+    return modelId;
+  }
+
+  return `${modelId}s`;
+}
+
+function createHookTargets(structureFiles: any[], dataModels: any[]) {
+  const existingTargets = structureFiles.filter(
+    (f: any) =>
+      f.path.includes("/hooks/") || f.path.split("/").pop()?.startsWith("use"),
+  );
+  const targetMap = new Map<string, any>();
+
+  for (const file of existingTargets) {
+    targetMap.set(file.path, file);
+  }
+
+  for (const model of dataModels) {
+    const modelId = model.modelId;
+    if (!modelId) continue;
+
+    const hookName = `use${pluralizeModelName(modelId)}`;
+    const path = `/hooks/${hookName}.ts`;
+
+    if (!targetMap.has(path)) {
+      targetMap.set(path, {
+        path,
+        description: `Hook for loading and managing ${modelId} data.`,
+        sourceCorrelation: modelId,
+        generatedBy: "hook",
+      });
+    }
+  }
+
+  return Array.from(targetMap.values());
+}
+
 export const hooksNode = async (state: T_Graph) => {
   // MOCK MODE Handling
   const mockResult = await tryExecuteMock(
@@ -19,9 +90,9 @@ export const hooksNode = async (state: T_Graph) => {
   const { structure, service, mockData, capabilities } = state as any;
 
   const allStructureFiles = structure?.files || [];
-  const targetFiles = allStructureFiles.filter(
-    (f: any) =>
-      f.path.includes("/hooks/") || f.path.split("/").pop()?.startsWith("use"),
+  const targetFiles = createHookTargets(
+    allStructureFiles,
+    capabilities?.dataModels || [],
   );
 
   const serviceFiles =
@@ -85,15 +156,21 @@ ${baseContextPrompt}
       ];
 
       // 使用重试机制调用模型
-      const result = await withRetry(model, messages, {
-        maxRetries: 3,
-        onRetry: (attempt, error) => {
-          console.warn(
-            `[HooksNode] Retry ${filePath} attempt ${attempt} due to:`,
-            error.message,
-          );
-        },
-      });
+      let result;
+      try {
+        result = await withRetry(model, messages, {
+          maxRetries: 2,
+          onRetry: (attempt, error) => {
+            console.warn(
+              `[HooksNode] Retry ${filePath} attempt ${attempt} due to:`,
+              error.message,
+            );
+          },
+        });
+      } catch (error) {
+        console.error(`[HooksNode] Failed to generate ${filePath}`, error);
+        return createFallbackHook(filePath, fileDesc);
+      }
 
       // Normalize output: Schema might return { files: [...] } or direct array
       const generatedFiles =
@@ -108,7 +185,7 @@ ${baseContextPrompt}
         // Fallback: take the first one if path didn't match perfectly but content exists
         if (generatedFiles.length > 0)
           return normalizeCodeFile(generatedFiles[0]);
-        throw new Error("No file content generated");
+        return createFallbackHook(filePath, fileDesc);
       }
 
       return normalizeCodeFile(targetFile);

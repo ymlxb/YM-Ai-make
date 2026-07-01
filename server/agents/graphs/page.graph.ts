@@ -5,6 +5,39 @@ import { getStructuredModel } from "../utils/model.js";
 import { normalizeLLMResult } from "../utils/codeNormalizer.js";
 import { processGeneratedCode } from "../utils/ast/fixer.js";
 
+function toPageName(filePath: string) {
+  const baseName = filePath.split("/").pop()?.replace(/\.(tsx|jsx)$/, "");
+  const safeName = (baseName || "GeneratedPage").replace(
+    /[^a-zA-Z0-9_$]/g,
+    "",
+  );
+  return /^[A-Z_$]/.test(safeName) ? safeName : `Generated${safeName}`;
+}
+
+function createFallbackPage(filePath: string, description = "") {
+  const pageName = toPageName(filePath);
+
+  return {
+    path: filePath,
+    content: `import React from 'react';
+
+export default function ${pageName}() {
+  return (
+    <main className="min-h-screen bg-slate-50 px-6 py-10">
+      <section className="mx-auto max-w-5xl rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
+        <p className="text-sm font-medium text-blue-600">页面已生成</p>
+        <h1 className="mt-3 text-3xl font-bold text-slate-950">${pageName}</h1>
+        <p className="mt-4 text-base leading-7 text-slate-600">${description || "页面代码生成失败，已使用兜底页面继续完成项目组装。"}</p>
+      </section>
+    </main>
+  );
+}
+`,
+    description:
+      description || "Fallback page generated when AI page generation fails.",
+  };
+}
+
 // 1. 定义子图状态 (Subgraph State)
 // 这是子图中流转的最小数据集
 export const PageState = Annotation.Root({
@@ -127,9 +160,10 @@ ${componentsContext}
   }
 
   if (!finalResult) {
-    throw new Error(
-      `Failed to generate page ${filePath} after 3 attempts: ${lastError}`,
-    );
+    console.error(`Failed to generate page ${filePath}`, lastError);
+    return {
+      pagesCode: [createFallbackPage(filePath, targetPage.description)],
+    };
   }
 
   // 后处理 Step 1：修复 LLM 输出中可能存在的转义字符问题

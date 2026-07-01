@@ -5,6 +5,78 @@ import { tryExecuteMock } from "../../../../utils/mock.js";
 import { withRetry } from "../../../../utils/retry.js";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 
+function getDataModelById(capabilities: any, modelId?: string) {
+  if (!modelId) return null;
+  return (capabilities?.dataModels || []).find(
+    (model: any) => model.modelId === modelId,
+  );
+}
+
+function createEvent(component: any) {
+  const behavior = component.bindBehavior?.[0];
+  if (!behavior) return [];
+
+  return [
+    {
+      name: `on${behavior.charAt(0).toUpperCase()}${behavior.slice(1)}`,
+      description: `Triggered by ${component.label || component.id}.`,
+      parameters: null,
+    },
+  ];
+}
+
+function createFallbackComponentSpecs(ui: any, capabilities: any) {
+  const components = new Map<string, any>();
+
+  for (const page of ui?.pages || []) {
+    for (const section of page.sections || []) {
+      for (const component of section.components || []) {
+        if (!component?.id || components.has(component.id)) continue;
+
+        const model = getDataModelById(capabilities, component.bindDataModel);
+        const props = [];
+
+        if (model) {
+          const propName =
+            component.type === "Table" ||
+            component.type === "List" ||
+            section.role === "list"
+              ? `${model.modelId.charAt(0).toLowerCase()}${model.modelId.slice(1)}s`
+              : `${model.modelId.charAt(0).toLowerCase()}${model.modelId.slice(1)}`;
+          const propType =
+            component.type === "Table" ||
+            component.type === "List" ||
+            section.role === "list"
+              ? `${model.modelId}[]`
+              : model.modelId;
+
+          props.push({
+            name: propName,
+            type: propType,
+            description: `${model.modelId} data used by this component.`,
+            required: true,
+          });
+        }
+
+        components.set(component.id, {
+          componentId: component.id,
+          originalId: component.id,
+          type: component.type || "Card",
+          description:
+            component.label ||
+            `${component.id} component generated from UI schema.`,
+          props,
+          events: createEvent(component),
+          dataDependencies: model ? [model.modelId] : [],
+          shadcnComponent: component.type || null,
+        });
+      }
+    }
+  }
+
+  return { components: Array.from(components.values()) };
+}
+
 export async function componentNode(state: any) {
   // 1. 获取模型
   const structuredModel = getStructuredModel(ComponentSchema);
@@ -68,15 +140,21 @@ export async function componentNode(state: any) {
   console.log("--- Component Specs Generation Head Start ---");
 
   // 使用重试机制调用模型
-  const result = await withRetry(structuredModel, messages, {
-    maxRetries: 3,
-    onRetry: (attempt, error) => {
-      console.warn(
-        `[ComponentNode] Retry attempt ${attempt} due to:`,
-        error.message,
-      );
-    },
-  });
+  let result;
+  try {
+    result = await withRetry(structuredModel, messages, {
+      maxRetries: 1,
+      onRetry: (attempt, error) => {
+        console.warn(
+          `[ComponentNode] Retry attempt ${attempt} due to:`,
+          error.message,
+        );
+      },
+    });
+  } catch (error) {
+    console.error("[ComponentNode] Falling back to UI-derived specs:", error);
+    result = createFallbackComponentSpecs(ui, capabilities);
+  }
 
   // console.log("Component Result:", JSON.stringify(result, null, 2));
   console.log("--- Component Specs Generation End ---");

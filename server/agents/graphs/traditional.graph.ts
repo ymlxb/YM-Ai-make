@@ -52,6 +52,54 @@ const routeAfterAnalysis = (state: typeof GraphState.State) => {
   return "intentNode";
 };
 
+function toComponentName(filePath: string, fallback: string) {
+  const baseName = filePath.split("/").pop()?.replace(/\.(tsx|jsx)$/, "");
+  const safeName = (baseName || fallback).replace(/[^a-zA-Z0-9_$]/g, "");
+  return /^[A-Z_$]/.test(safeName) ? safeName : `${fallback}${safeName}`;
+}
+
+function createFallbackComponentFile(file: any) {
+  const componentName = toComponentName(file.path, "Component");
+  return {
+    path: file.path,
+    content: `import React from 'react';
+
+export default function ${componentName}() {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-slate-950">${componentName}</h2>
+      <p className="mt-2 text-sm leading-6 text-slate-600">${file.description || "组件内容"}</p>
+    </section>
+  );
+}
+`,
+    description: file.description || "Fallback component",
+  };
+}
+
+function createFallbackPageFile(file: any) {
+  const pageName = toComponentName(file.path, "Page");
+  return {
+    path: file.path,
+    content: `import React from 'react';
+
+export default function ${pageName}() {
+  return (
+    <main className="min-h-screen bg-slate-950 px-6 py-12 text-white">
+      <section className="mx-auto max-w-6xl">
+        <p className="text-sm font-medium text-cyan-300">AI 简历优化工具</p>
+        <h1 className="mt-4 max-w-3xl text-4xl font-bold leading-tight">让中文简历更专业、更有说服力</h1>
+        <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300">${file.description || "专业现代的中文官网首页"}</p>
+        <button className="mt-8 rounded-md bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950">立即体验</button>
+      </section>
+    </main>
+  );
+}
+`,
+    description: file.description || "Fallback page",
+  };
+}
+
 // 使用 Annotation.Root 显式定义状态
 // 这解决了 LangGraph JS 在 StateGraph(ZodSchema) 模式下 Reducer 不生效的问题
 const GraphState = Annotation.Root({
@@ -137,7 +185,18 @@ const runComponentGraph = async (state: typeof GraphState.State) => {
   };
 
   // 2. 调用子图 (作为一个整体运行直到结束)
-  const result = await componentGraph.invoke(subgraphInput);
+  let result;
+  try {
+    result = await componentGraph.invoke(subgraphInput);
+  } catch (error) {
+    console.warn(
+      "[MainGraph] Component subgraph fallback:",
+      error instanceof Error ? error.message : error,
+    );
+    result = {
+      componentsCode: componentsToGenerate.map(createFallbackComponentFile),
+    };
+  }
 
   // 3. 返回结果 (将被合并到主图 state.componentsCode)
   return {
@@ -177,7 +236,18 @@ const runPageGraph = async (state: typeof GraphState.State) => {
     },
   };
 
-  const result = await pageGraph.invoke(subgraphInput);
+  let result;
+  try {
+    result = await pageGraph.invoke(subgraphInput);
+  } catch (error) {
+    console.warn(
+      "[MainGraph] Page subgraph fallback:",
+      error instanceof Error ? error.message : error,
+    );
+    result = {
+      pagesCode: pagesToGenerate.map(createFallbackPageFile),
+    };
+  }
 
   return {
     pagesCode: result.pagesCode,

@@ -1,55 +1,125 @@
-import { UISchema } from "../schemas/uiSchema.js";
+﻿import { UISchema } from "../schemas/uiSchema.js";
 import { UI_SYSTEM_PROMPT } from "../prompts/uiPrompts.js";
 import { getStructuredModel } from "../../../../utils/model.js";
 import { tryExecuteMock } from "../../../../utils/mock.js";
 import { withRetry } from "../../../../utils/retry.js";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 
-export async function uiNode(state: any) {
-  // 1. 获取模型
-  const structuredModel = getStructuredModel(UISchema);
+function buildFallbackUI(capabilities: any, intent: any) {
+  const pages = Array.isArray(capabilities?.pages) ? capabilities.pages : [];
+  const behaviors = Array.isArray(capabilities?.behaviors)
+    ? capabilities.behaviors
+    : [];
+  const dataModels = Array.isArray(capabilities?.dataModels)
+    ? capabilities.dataModels
+    : [];
+  const primaryModel = dataModels[0]?.modelId || "";
+  const productName = intent?.product?.name || "Generated App";
 
-  // 2. 准备上下文
-  // 核心依赖：Capabilities (逻辑骨架)
+  const fallbackPages = (pages.length ? pages : [{ pageId: "HomePage" }]).map(
+    (page: any, index: number) => {
+      const pageId = page.pageId || (index === 0 ? "HomePage" : `Page${index}`);
+      const route = index === 0 ? "/" : `/${String(pageId).toLowerCase()}`;
+      const scopedBehaviors = behaviors
+        .filter((behavior: any) => behavior?.scope?.includes?.(pageId))
+        .map((behavior: any) => behavior.behaviorId)
+        .filter(Boolean);
+
+      return {
+        pageId,
+        route: page.route || route,
+        description:
+          page.description || `${productName} page for ${String(pageId)}`,
+        layout: page.pageType === "dashboard" ? "dashboard-shell" : "default",
+        sections: [
+          {
+            sectionId: "hero",
+            role: "dashboard",
+            layout: "grid",
+            title: productName,
+            components: [
+              {
+                id: `${pageId}Hero`,
+                type: "Card",
+                label: "Hero",
+                bindDataModel: primaryModel,
+                bindBehavior: scopedBehaviors,
+              },
+              {
+                id: `${pageId}PrimaryAction`,
+                type: "Button",
+                label: "Primary action",
+                bindDataModel: primaryModel,
+                bindBehavior: scopedBehaviors.slice(0, 1),
+              },
+            ],
+          },
+          {
+            sectionId: "content",
+            role: page.pageType === "form" ? "form" : "list",
+            layout: "grid",
+            title: "Content",
+            components: [
+              {
+                id: `${pageId}Overview`,
+                type: "Card",
+                label: "Overview",
+                bindDataModel: primaryModel,
+                bindBehavior: scopedBehaviors,
+              },
+              {
+                id: `${pageId}Details`,
+                type: "List",
+                label: "Details",
+                bindDataModel: primaryModel,
+                bindBehavior: scopedBehaviors,
+              },
+            ],
+          },
+        ],
+      };
+    },
+  );
+
+  return {
+    pages: fallbackPages,
+    themeStrategy: "Modern, professional, responsive Chinese interface.",
+  };
+}
+
+export async function uiNode(state: any) {
+  const structuredModel = getStructuredModel(UISchema);
   const capabilities = state.capabilities;
 
   if (!capabilities) {
-    console.warn("UINode: No capability data found, skipping.");
-    return { ui: null };
+    console.warn("[UINode] No capability data found, using fallback UI.");
+    return { ui: buildFallbackUI({}, state.intent) };
   }
 
-  // 辅助依赖：Intent (产品目标) 和 Analysis (视觉偏好)
   const intentContext = state.intent
     ? JSON.stringify(state.intent, null, 2)
-    : "未提供";
+    : "Not provided";
   const analysisContext = state.analysis
     ? JSON.stringify(state.analysis, null, 2)
-    : "未提供";
-
+    : "Not provided";
   const capabilityContext = JSON.stringify(capabilities, null, 2);
 
-  // 3. 构建 Prompt
-  // 我们将所有上游信息汇总给模型
-  const humanPrompt = `
-请基于以下信息生成 UI 架构设计：
+  const humanPrompt = `Generate a UI architecture plan from the context below. Return valid JSON only.
 
-【Intent (产品意图)】
+Intent:
 ${intentContext}
 
-【Capabilities (技术能力规划)】
+Capabilities:
 ${capabilityContext}
 
-【Analysis (视觉/设计分析)】
-${analysisContext}
-`;
+Analysis:
+${analysisContext}`;
 
   const messages = [
     new SystemMessage(UI_SYSTEM_PROMPT),
     new HumanMessage(humanPrompt),
   ];
 
-  // 4. 调用模型
-  // MOCK MODE Handling
   const mockResult = await tryExecuteMock(
     state,
     "uiNode",
@@ -58,21 +128,34 @@ ${analysisContext}
   );
   if (mockResult) return mockResult;
 
-  console.log("--- UI Architecture Analysis Head Start ---");
+  console.log("--- UI Architecture Analysis Start ---");
 
-  // 使用带错误反馈的重试机制（自定义错误提示以强调 role 枚举值）
-  const result = await withRetry(structuredModel, messages, {
-    maxRetries: 3,
-    onRetry: (attempt, error) => {
-      console.warn(`[UINode] Retry attempt ${attempt} due to:`, error.message);
-    },
-    formatErrorFeedback: (error) =>
-      `⚠️ 上一次生成失败，错误信息：\n${error.message}\n\n请仔细检查并修正以下问题：\n1. 确保所有 section 的 role 字段只使用合法枚举值：navigation, filter, list, detail, editor, dashboard, form\n2. 确保所有组件的 type 字段只使用 Schema 定义的组件类型\n3. 确保 JSON 格式正确，没有遗漏必填字段\n\n请重新生成正确的 JSON：`,
-  });
+  try {
+    const result = await withRetry(structuredModel, messages, {
+      maxRetries: 2,
+      onRetry: (attempt, error) => {
+        console.warn(
+          `[UINode] Retry attempt ${attempt} due to:`,
+          error.message,
+        );
+      },
+      formatErrorFeedback: (error) =>
+        `Previous UI schema generation failed:\n${error.message}\n\nReturn valid JSON that matches the schema. Section role must be one of navigation, filter, list, detail, editor, dashboard, form.`,
+    });
 
-  console.log("--- UI Architecture Analysis End ---");
+    console.log("--- UI Architecture Analysis End ---");
 
-  return {
-    ui: result,
-  };
+    return {
+      ui: result,
+    };
+  } catch (error) {
+    console.warn(
+      "[UINode] Falling back to deterministic UI plan:",
+      error instanceof Error ? error.message : error,
+    );
+
+    return {
+      ui: buildFallbackUI(capabilities, state.intent),
+    };
+  }
 }

@@ -25,6 +25,8 @@ router.post("/", async (req: Request, res: Response) => {
   // 立即发送头部
   res.flushHeaders();
 
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+
   try {
     const { messages, mockConfig: userMockConfig, projectId } = req.body;
     console.log("Received messages count:", messages?.length);
@@ -49,6 +51,12 @@ router.post("/", async (req: Request, res: Response) => {
 
     // 发送初始为了建立连接的注释包（某些浏览器/代理需要先收到数据才认为连接成功）
     res.write(": keep-alive\n\n");
+    heartbeat = setInterval(() => {
+      res.write(": keep-alive\n\n");
+      if ((res as any).flush) {
+        (res as any).flush();
+      }
+    }, 10000);
 
     // 使用 projectId 作为 thread_id 实现项目隔离
     const threadId =
@@ -97,6 +105,10 @@ router.post("/", async (req: Request, res: Response) => {
       let payload = output[handler.key];
 
       if (payload === undefined) {
+        payload = (output as any)[eventType];
+      }
+
+      if (payload === undefined) {
         console.warn(
           `Skipping ${nodeName}: missing output key "${handler.key}"`,
         );
@@ -142,6 +154,7 @@ router.post("/", async (req: Request, res: Response) => {
 
     // 发送结束信号
     res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+    if (heartbeat) clearInterval(heartbeat);
     res.end();
   } catch (error) {
     console.error("Error processing chat:", error);
@@ -153,6 +166,7 @@ router.post("/", async (req: Request, res: Response) => {
           error instanceof Error ? error.message : "Internal server error",
       })}\n\n`,
     );
+    if (heartbeat) clearInterval(heartbeat);
     res.end();
   }
 });

@@ -7,6 +7,45 @@ import { normalizeLLMResult } from "../../../../utils/codeNormalizer.js";
 import { withRetry } from "../../../../utils/retry.js";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
+function createFallbackApp(state: T_Graph) {
+  const pagesCode = state.pagesCode || [];
+  const pageImports = pagesCode.map((page: any) => {
+    const match = page.path.match(/\/pages\/([^.]+)\.tsx$/);
+    const name = match ? match[1] : "HomePage";
+    return { name, importPath: `./pages/${name}` };
+  });
+  const firstPage = pageImports[0]?.name || "HomePage";
+  const imports = pageImports
+    .map((page) => `import ${page.name} from '${page.importPath}';`)
+    .join("\n");
+  const routes = pageImports
+    .map((page, index) => {
+      const path = index === 0 ? "/" : `/${page.name.toLowerCase()}`;
+      return `        <Route path="${path}" element={<${page.name} />} />`;
+    })
+    .join("\n");
+
+  return normalizeLLMResult({
+    path: "/App.tsx",
+    content: `import React from 'react';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+${imports}
+
+export default function App() {
+  return (
+    <HashRouter>
+      <Routes>
+${routes || `        <Route path="/" element={<${firstPage} />} />`}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </HashRouter>
+  );
+}
+`,
+    description: "Fallback App entry generated after AppGenNode failure.",
+  });
+}
+
 /**
  * Step 15: App.tsx 生成节点
  *
@@ -169,7 +208,12 @@ ${normalizedResult.content}
       app: normalizedResult,
     };
   } catch (error) {
-    console.error("AppGenNode Error:", error);
-    throw new Error(`AppGenNode failed: ${error}`);
+    console.warn(
+      "AppGenNode fallback:",
+      error instanceof Error ? error.message : error,
+    );
+    return {
+      app: createFallbackApp(state),
+    };
   }
 }

@@ -16,7 +16,7 @@ export const NODE_HANDLERS: Record<string, { type: string; key: string }> = {
   utilsNode: { type: "utils", key: "utils" },
   mockDataNode: { type: "mockData", key: "mockData" },
   // 注意：serviceNode 的输出字段在 Graph Schema 中被定义为 'logic'
-  serviceNode: { type: "service", key: "logic" },
+  serviceNode: { type: "service", key: "service" },
   hooksNode: { type: "hooks", key: "hooks" },
   componentSubgraph: { type: "componentsCode", key: "componentsCode" },
   pageSubgraph: { type: "pagesCode", key: "pagesCode" },

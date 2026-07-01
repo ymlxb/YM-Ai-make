@@ -5,6 +5,37 @@ import { getStructuredModel } from "../utils/model.js";
 import { normalizeLLMResult } from "../utils/codeNormalizer.js";
 import { processGeneratedCode } from "../utils/ast/fixer.js";
 
+function toComponentName(filePath: string) {
+  const baseName = filePath.split("/").pop()?.replace(/\.(tsx|jsx)$/, "");
+  const safeName = (baseName || "GeneratedComponent").replace(
+    /[^a-zA-Z0-9_$]/g,
+    "",
+  );
+  return /^[A-Z_$]/.test(safeName) ? safeName : `Generated${safeName}`;
+}
+
+function createFallbackComponent(filePath: string, description = "") {
+  const componentName = toComponentName(filePath);
+
+  return {
+    path: filePath,
+    content: `import React from 'react';
+
+export default function ${componentName}() {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <h2 className="text-base font-semibold text-slate-900">${componentName}</h2>
+      <p className="mt-2 text-sm text-slate-600">${description || "组件内容生成失败，已使用兜底展示。"}</p>
+    </section>
+  );
+}
+`,
+    description:
+      description ||
+      "Fallback component generated when AI component generation fails.",
+  };
+}
+
 // 1. 定义子图状态 (Subgraph State)
 // 这是子图中流转的最小数据集
 export const ComponentState = Annotation.Root({
@@ -63,11 +94,16 @@ const generateComponentNode = async (state: typeof ComponentState.State) => {
     .join("\n\n");
 
   // Specs Match
-  const compSpec = components?.components?.find(
-    (c: any) =>
-      fileName.includes(c.id) || targetComponent.description?.includes(c.id),
-  ) || {
-    id: "Unknown",
+  const compSpec = components?.components?.find((c: any) => {
+    const specIds = [c.componentId, c.id, c.originalId].filter(Boolean);
+    return specIds.some(
+      (specId) =>
+        fileName.includes(specId) ||
+        targetComponent.description?.includes(specId) ||
+        targetComponent.sourceCorrelation === specId,
+    );
+  }) || {
+    componentId: "Unknown",
     props: [],
     events: [],
     description: targetComponent.description,
@@ -87,7 +123,7 @@ const generateComponentNode = async (state: typeof ComponentState.State) => {
 当前任务: 生成组件文件 "${filePath}"
 
 【组件规格 (Component Spec)】
-ID: ${compSpec.id}
+ID: ${compSpec.componentId || compSpec.id}
 Description: ${compSpec.description || targetComponent.description}
 Props: ${JSON.stringify(compSpec.props || [])}
 Events: ${JSON.stringify(compSpec.events || [])}
@@ -121,7 +157,12 @@ ${serviceContext}
   }
 
   if (!finalResult) {
-    throw new Error(`Failed to generate component ${fileName}: ${lastError}`);
+    console.error(`Failed to generate component ${fileName}`, lastError);
+    return {
+      componentsCode: [
+        createFallbackComponent(filePath, targetComponent.description),
+      ],
+    };
   }
 
   // 后处理 Step 1：修复 LLM 输出中可能存在的转义字符问题

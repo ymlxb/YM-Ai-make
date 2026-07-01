@@ -5,6 +5,7 @@ import {
 } from "../../../../utils/dependencyBuilder.js";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { normalizeCodeContent } from "../../../../utils/codeNormalizer.js";
 
 /**
  * Step 16: 文件组装节点
@@ -34,7 +35,7 @@ export async function assembleNode(state: T_Graph) {
   // 辅助函数：添加文件并统计
   const addFile = (filePath: string, content: string, category: string) => {
     const normalizedPath = normalizePath(filePath);
-    files[normalizedPath] = content;
+    files[normalizedPath] = normalizeCodeContent(content);
     categories[category] = (categories[category] || 0) + 1;
   };
 

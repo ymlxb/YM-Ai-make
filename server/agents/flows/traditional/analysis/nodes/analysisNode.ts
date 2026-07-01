@@ -1,4 +1,4 @@
-import { AnalysisSchema } from "../schemas/analysisSchema.js";
+﻿import { AnalysisSchema } from "../schemas/analysisSchema.js";
 import { ANALYSIS_SYSTEM_PROMPT } from "../prompts/analysisPrompts.js";
 import { getStructuredModel } from "../../../../utils/model.js";
 import { tryExecuteMock } from "../../../../utils/mock.js";
@@ -10,43 +10,87 @@ import {
   BaseMessage,
 } from "@langchain/core/messages";
 
-// 辅助函数：将前端消息格式转换为 LangChain 消息对象
-// 注意：只转换文字内容，不处理图片/设计稿（那是适配器的工作）
 async function convertToLangChainMessages(
   rawMessages: any[],
 ): Promise<BaseMessage[]> {
   return rawMessages.map((msg) => {
-    // 只提取文字内容，忽略附件
     const textContent =
       typeof msg.content === "string" && msg.content.trim()
         ? msg.content
-        : "用户上传了附件";
+        : "User uploaded an attachment.";
 
     if (msg.role === "user") {
       return new HumanMessage(textContent);
-    } else {
-      return new AIMessage(textContent);
     }
+
+    return new AIMessage(textContent);
   });
+}
+
+function getLatestTextMessage(messages: any[] = []) {
+  const lastMsg = messages[messages.length - 1];
+  return typeof lastMsg?.content === "string" ? lastMsg.content : "";
+}
+
+function hasBuildIntent(text: string) {
+  return /\u505a\u4e00\u4e2a|\u505a\u4e2a|\u751f\u6210|\u521b\u5efa|\u5f00\u53d1|\u5b9e\u73b0|\u642d\u5efa|\u8bbe\u8ba1|\u5b98\u7f51|\u9996\u9875|\u9875\u9762|\u7f51\u7ad9|\u5e94\u7528|\u5de5\u5177|\u7cfb\u7edf|\u540e\u53f0|\u4eea\u8868\u76d8|\u5c0f\u7a0b\u5e8f|app/i.test(
+    text,
+  );
+}
+
+function normalizeAnalysisResult(result: any, latestText: string) {
+  if (
+    hasBuildIntent(latestText) &&
+    (result.type === "QA" || result.type === "CHIT_CHAT")
+  ) {
+    return {
+      ...result,
+      type: "CREATE",
+      summary: result.summary || latestText,
+      tags:
+        Array.isArray(result.tags) && result.tags.length
+          ? result.tags
+          : ["app-generation"],
+    };
+  }
+
+  return result;
+}
+
+function buildCreateAnalysis(latestText: string) {
+  return {
+    type: "CREATE",
+    summary: latestText,
+    tags: ["app-generation"],
+    complexity: "MEDIUM",
+    designAnalysis: latestText,
+  };
 }
 
 export const analysisNode = async (state: any) => {
   const structuredModel = getStructuredModel(AnalysisSchema);
 
   let messages: BaseMessage[] = [];
+  const latestText = getLatestTextMessage(state.messages);
 
-  // 检查并处理消息（仅文本，输入来源分流由路由层处理）
   if (state.messages && Array.isArray(state.messages)) {
     const lastMsg = state.messages[state.messages.length - 1];
-    // 转换消息（只包含文字，不包含附件）
     messages = await convertToLangChainMessages([lastMsg]);
   }
 
   const prompt = [new SystemMessage(ANALYSIS_SYSTEM_PROMPT), ...messages];
 
-  console.log("\n📋 [AnalysisNode] 开始意图分析（输入来源已由路由层处理）");
+  console.log("\n[AnalysisNode] Start intent analysis");
 
-  // MOCK MODE Handling
+  if (hasBuildIntent(latestText)) {
+    const deterministicResult = buildCreateAnalysis(latestText);
+    console.log("[AnalysisNode] Intent:", deterministicResult.type);
+    return {
+      analysis: deterministicResult,
+      skipGeneration: false,
+    };
+  }
+
   const mockResult = await tryExecuteMock(
     state,
     "analysisNode",
@@ -54,17 +98,22 @@ export const analysisNode = async (state: any) => {
     "analysis",
   );
   if (mockResult) {
+    const normalizedAnalysis = normalizeAnalysisResult(
+      mockResult.analysis,
+      latestText,
+    );
+
     return {
       ...mockResult,
+      analysis: normalizedAnalysis,
       skipGeneration:
-        mockResult.analysis?.type === "QA" ||
-        mockResult.analysis?.type === "CHIT_CHAT",
+        normalizedAnalysis?.type === "QA" ||
+        normalizedAnalysis?.type === "CHIT_CHAT",
     };
   }
 
   console.log("--- User Message Analysis Start ---");
 
-  // 使用重试机制调用模型
   const result = await withRetry(structuredModel, prompt, {
     maxRetries: 3,
     onRetry: (attempt, error) => {
@@ -75,11 +124,14 @@ export const analysisNode = async (state: any) => {
     },
   });
 
+  const normalizedResult = normalizeAnalysisResult(result, latestText);
+
   console.log("--- User Message Analysis End ---");
-  console.log("📊 [AnalysisNode] 用户意图:", result.type);
+  console.log("[AnalysisNode] Intent:", normalizedResult.type);
 
   return {
-    analysis: result,
-    skipGeneration: result.type === "QA" || result.type === "CHIT_CHAT",
+    analysis: normalizedResult,
+    skipGeneration:
+      normalizedResult.type === "QA" || normalizedResult.type === "CHIT_CHAT",
   };
 };

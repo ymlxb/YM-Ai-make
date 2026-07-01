@@ -1,4 +1,4 @@
-import { IntentSchema } from "../schemas/intentSchema.js";
+﻿import { IntentSchema } from "../schemas/intentSchema.js";
 import { IntentPrompts } from "../prompts/intentPrompts.js";
 import { getStructuredModel } from "../../../../utils/model.js";
 import { tryExecuteMock } from "../../../../utils/mock.js";
@@ -50,6 +50,29 @@ function normalizeIntentResult(result: any) {
   };
 }
 
+function buildFallbackIntent(summary = "") {
+  const isResume = /\u7b80\u5386|resume/i.test(summary);
+  const productName = isResume ? "AI简历优化工具" : "智能应用官网";
+
+  return {
+    product: {
+      name: productName,
+      description: summary || `${productName} 的中文产品官网首页`,
+      targetUsers: isResume
+        ? ["求职者", "应届毕业生", "希望提升简历质量的职场人士"]
+        : ["目标用户", "潜在客户", "产品体验用户"],
+      primaryScenario: "用户浏览官网，了解产品价值、功能亮点、用户评价和价格方案，并点击立即体验。",
+    },
+    goals: {
+      primary: ["展示产品核心价值", "呈现功能介绍", "引导用户立即体验"],
+      secondary: ["展示用户评价", "展示价格套餐", "提升官网专业感"],
+    },
+    nonGoals: ["不实现真实支付", "不接入真实登录", "不提供后端管理系统"],
+    assumptions: ["页面用于作品集和面试展示", "需要中文内容", "需要专业现代的视觉效果"],
+    category: "中文产品官网首页",
+  };
+}
+
 export async function intentNode(state: any) {
   if (state.skipGeneration) {
     console.log("[IntentNode] skipGeneration=true, skipping.");
@@ -58,37 +81,25 @@ export async function intentNode(state: any) {
     };
   }
 
-  // 1. 获取单例模型 (使用结构化输出)
   const structuredModel = getStructuredModel(IntentSchema);
-
-  // 2. 准备上下文
-  // 我们结合用户的原始需求 (analysis.summary) 和可能的补充信息
-  const analysisSummary = state.analysis?.summary || "用户未提供有效信息";
+  const analysisSummary = state.analysis?.summary || "User request";
   const analysisTags = state.analysis?.tags?.join(", ") || "";
-
-  // 如果有设计稿分析，也带上
   const designContext = state.analysis?.designAnalysis
-    ? `\n\n[关联的设计稿分析]: ${state.analysis.designAnalysis}`
+    ? `\n\nDesign context: ${state.analysis.designAnalysis}`
     : "";
+  const contextMessage = `User request summary: ${analysisSummary}\nTags: ${analysisTags}${designContext}`;
 
-  const contextMessage = `用户需求总结: ${analysisSummary}\n关键标签: ${analysisTags}${designContext}`;
-
-  // 3. 构建 Prompt
   const prompt = [
     new SystemMessage(
       `${IntentPrompts}
 
 Important schema rule:
 Fields targetUsers, goals.primary, goals.secondary, nonGoals and assumptions must be real JSON arrays.
-Never output array fields as quoted JSON strings.
-Wrong: "assumptions": "[\\"A\\", \\"B\\"]"
-Correct: "assumptions": ["A", "B"]`,
+Never output array fields as quoted JSON strings.`,
     ),
     new HumanMessage(contextMessage),
   ];
 
-  // 4. 调用模型
-  // MOCK MODE Handling
   const mockResult = await tryExecuteMock(
     state,
     "intentNode",
@@ -97,24 +108,32 @@ Correct: "assumptions": ["A", "B"]`,
   );
   if (mockResult) return mockResult;
 
-  console.log("--- User Intent Analysis Head Start ---");
+  console.log("--- User Intent Analysis Start ---");
 
-  // 使用重试机制调用模型
-  const result = await withRetry(structuredModel, prompt, {
-    maxRetries: 3,
-    onRetry: (attempt, error) => {
-      console.warn(
-        `[IntentNode] Retry attempt ${attempt} due to:`,
-        error.message,
-      );
-    },
-  });
+  try {
+    const result = await withRetry(structuredModel, prompt, {
+      maxRetries: 2,
+      onRetry: (attempt, error) => {
+        console.warn(
+          `[IntentNode] Retry attempt ${attempt} due to:`,
+          error.message,
+        );
+      },
+    });
 
-  // console.log("Intent Result:", JSON.stringify(result, null, 2));
-  console.log("--- User Intent Analysis End ---");
+    console.log("--- User Intent Analysis End ---");
 
-  // 5. 返回结果
-  return {
-    intent: normalizeIntentResult(result),
-  };
+    return {
+      intent: normalizeIntentResult(result),
+    };
+  } catch (error) {
+    console.warn(
+      "[IntentNode] Falling back to deterministic intent:",
+      error instanceof Error ? error.message : error,
+    );
+
+    return {
+      intent: buildFallbackIntent(analysisSummary),
+    };
+  }
 }

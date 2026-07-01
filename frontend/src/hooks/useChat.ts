@@ -178,12 +178,16 @@ export function useChat() {
             }
 
             if (type === "error") {
-              const payload = data as { message?: string };
+              const payload = event as {
+                message?: string;
+                data?: { message?: string };
+              };
               addThought(assistantId, {
                 // 传入 messageId
                 key: `error-${Date.now()}`,
                 title: "发生错误",
-                description: payload.message || "未知错误",
+                description:
+                  payload.data?.message || payload.message || "未知错误",
                 status: "error",
               });
               return;
