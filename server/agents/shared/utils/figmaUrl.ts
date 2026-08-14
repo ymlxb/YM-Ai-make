@@ -9,9 +9,11 @@
  *   https://www.figma.com/design/xxx
  *   https://www.figma.com/proto/xxx
  *   https://www.figma.com/board/xxx
+ *   https://www.figma.com/site/xxx (Figma Sites)
+ *   https://www.figma.com/community/file/xxx (社区文件)
  */
 export const FIGMA_URL_REGEX =
-  /https?:\/\/([\w.-]+\.)?figma\.com\/(file|design|proto|board)\/[\w-]+[^\s)}\]"]*/i;
+  /https?:\/\/([\w.-]+\.)?figma\.com\/(file|design|proto|board|site|community\/file)\/[\w-]+[^\s)}\]"]*/i;
 
 /**
  * 从消息列表中提取 Figma URL
@@ -38,4 +40,3 @@ export function extractFigmaUrl(messages: any[]): string | null {
 
   return null;
 }
-

@@ -88,10 +88,43 @@ export function getMainModel() {
       console.log("[Model] Using GLM as main model");
       return getGLMModel();
     case "deepseek":
-    default:
       console.log("[Model] Using DeepSeek as main model");
       return getDeepSeekModel();
+    default:
+      console.warn(
+        `[Model] Unknown MAIN_MODEL_PROVIDER "${provider}", falling back to GLM`,
+      );
+      return getGLMModel();
   }
+}
+
+/**
+ * Get a main-model instance with a large output token cap (32K).
+ * Used by code-generation nodes where reasoning + full code can exceed
+ * the default 8K output limit. DeepSeek keeps its own 8K cap.
+ */
+let glmLongOutputInstance: ChatOpenAI | null = null;
+
+export function getLongOutputMainModel() {
+  const provider = env("MAIN_MODEL_PROVIDER", "glm");
+
+  if (provider.toLowerCase() === "deepseek") {
+    console.log("[Model] Using DeepSeek as long-output model");
+    return getDeepSeekModel();
+  }
+
+  if (!glmLongOutputInstance) {
+    glmLongOutputInstance = new ChatOpenAI({
+      model: env("GLM_MODEL", "glm-5.2"),
+      apiKey: env("GLM_API_KEY"),
+      temperature: 0,
+      maxTokens: 32768,
+      configuration: {
+        baseURL: env("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/"),
+      },
+    });
+  }
+  return glmLongOutputInstance;
 }
 
 /**
