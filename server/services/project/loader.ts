@@ -3,11 +3,16 @@
  * 加载已生成的项目（用于 MODIFY）
  */
 
+import { loadProjectFiles } from "./store.js";
+
 export const loadProject = async (projectId: string) => {
-  // TODO: 实现项目加载逻辑
+  const files = (await loadProjectFiles(projectId)) || {};
   return {
     structure: {},
     components: [],
-    files: [],
+    files: Object.entries(files).map(([filePath, content]) => ({
+      filePath,
+      content,
+    })),
   };
 };

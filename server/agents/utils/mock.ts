@@ -43,7 +43,9 @@ export async function tryExecuteMock(
   console.log(`--- ${nodeName} Head Start (MOCK) ---`);
 
   // 2. 模拟延迟
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  // 可通过 MOCK_DELAY_MS 放大 mock 延迟，便于观察/中断测试
+  const mockDelay = Number(process.env.MOCK_DELAY_MS || "100");
+  await new Promise((resolve) => setTimeout(resolve, mockDelay));
 
   try {
     // 3. 读取文件

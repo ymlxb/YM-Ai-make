@@ -10,6 +10,7 @@ import {
   Lightbulb,
   Paperclip,
   Sparkles,
+  Square,
   X,
 } from "lucide-react";
 import { useChat } from "@/hooks/useChat";
@@ -32,7 +33,7 @@ const examplePrompts = [
 ];
 
 export function ChatPanel() {
-  const { messages, isLoading, sendMessage } = useChat();
+  const { messages, isLoading, sendMessage, stopGeneration } = useChat();
   const messageThoughts = useChatStore((state) => state.messageThoughts);
   const versions = useChatStore((state) => state.versions);
   const projectName = useChatStore((state) => state.projectName);
@@ -263,6 +264,20 @@ export function ChatPanel() {
       </div>
 
       <div className="shrink-0 border-t border-[#e5eaf2] bg-[#fbfdff] p-3">
+        {isLoading && (
+          <div className="mb-2 flex justify-end">
+            <button
+              type="button"
+              onClick={stopGeneration}
+              className="flex items-center gap-1.5 rounded-full border border-[#e5eaf2] bg-white px-3 py-1.5 text-xs font-medium text-[#64748b] shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+              title="停止当前生成"
+            >
+              <Square className="h-3 w-3 fill-current" />
+              停止生成
+            </button>
+          </div>
+        )}
+
         {attachedFiles.length > 0 && (
           <div className="mb-3 flex gap-2 overflow-x-auto px-1">
             {attachedFiles.map((file) => (

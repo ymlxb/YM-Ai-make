@@ -1,9 +1,9 @@
 // 聊天相关自定义 Hook
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { ChatMessage } from "@/types/message";
-import { generateAppStream } from "@/services/api";
+import { generateAppStream, stopChatStream } from "@/services/api";
 import { useChatStore } from "@/store/chatStore";
 import { useSandpackStore } from "@/store/sandpackStore";
 import { StreamEventType } from "@/types/api";
@@ -26,6 +26,9 @@ import {
  * - 接收 files 事件并更新 Sandpack
  */
 export function useChat() {
+  // 当前生成任务的 AbortController，用于“停止生成”
+  const abortRef = useRef<AbortController | null>(null);
+
   const {
     messages,
     isLoading,
@@ -87,6 +90,11 @@ export function useChat() {
       const isEditing = messages.some((m) => m.role === "assistant");
       const operation: "create" | "edit" = isEditing ? "edit" : "create";
 
+      // 修改请求识别：已有生成代码 + 编辑操作 -> modification 流程
+      const sandpackFiles = useSandpackStore.getState().generatedFiles;
+      const hasExistingFiles =
+        !!sandpackFiles && Object.keys(sandpackFiles).length > 0;
+
       // 递增版本号
       const newVersion = incrementVersion();
       const threadId = getCurrentThreadId();
@@ -134,8 +142,12 @@ export function useChat() {
       const assistantId = assistantMessage.id; // ✨ 保存 ID 用于后续操作
       addMessage(assistantMessage);
 
-      // ✨ 流程类型识别：检测用户输入是否包含 Figma 链接
-      const flowType: FlowType = isFigmaUrl(content) ? "figma" : "traditional";
+      // ✨ 流程类型识别：Figma 链接 > 已有代码上的修改请求 > 从零生成
+      const flowType: FlowType = isFigmaUrl(content)
+        ? "figma"
+        : hasExistingFiles && operation === "edit"
+          ? "modification"
+          : "traditional";
       setCurrentFlow(flowType);
 
       // ✨ 使用流程配置的初始步骤
@@ -160,16 +172,40 @@ export function useChat() {
 
       try {
         // 3. 调用流式接口，传递版本化的 threadId
+        // 修改请求：把当前代码文件一起传给后端
+        const currentFiles = hasExistingFiles
+          ? Object.fromEntries(
+              Object.entries(sandpackFiles!).map(([filePath, file]) => [
+                filePath,
+                file.code,
+              ]),
+            )
+          : undefined;
+
+        const controller = new AbortController();
+        abortRef.current = controller;
+
         await generateAppStream(
           {
             messages: currentHistory,
             projectId: threadId, // ✅ 使用版本化的 threadId
+            files: currentFiles,
           },
           (event) => {
             const { type, data } = event;
             console.log("[useChat] Stream Event:", type);
 
             if (type === "done") return;
+
+            if (type === "stopped") {
+              addThought(assistantId, {
+                key: `stopped-${Date.now()}`,
+                title: "已停止生成",
+                description: "本次生成已手动停止，当前文件保持不变。",
+                status: "success",
+              });
+              return;
+            }
 
             if (type === "answer") {
               const payload = data as { content?: string };
@@ -193,10 +229,25 @@ export function useChat() {
               return;
             }
 
-            // 特殊处理：files / figmaAssembly 事件 - 更新 Sandpack 并保存版本快照
-            if (type === "files" || type === "figmaAssembly") {
+            // 特殊处理：files / figmaAssembly / modificationFiles 事件
+            // - 更新 Sandpack
+            // - 保存版本快照（修改流程携带变更统计）
+            if (
+              type === "files" ||
+              type === "figmaAssembly" ||
+              type === "modificationFiles"
+            ) {
               const filesPayload = data as
-                | { files?: Record<string, string> }
+                | {
+                    files?: Record<string, string>;
+                    stats?: {
+                      changes?: {
+                        added?: string[];
+                        modified?: string[];
+                        deleted?: string[];
+                      };
+                    };
+                  }
                 | undefined;
               if (
                 filesPayload?.files &&
@@ -208,6 +259,20 @@ export function useChat() {
                 );
                 setGeneratedFiles(filesPayload.files);
 
+                // 修改流程返回的变更统计（后端计算 added/modified/deleted）
+                const rawChanges = filesPayload.stats?.changes;
+                const changes: {
+                  added: string[];
+                  modified: string[];
+                  deleted: string[];
+                } | undefined = rawChanges
+                  ? {
+                      added: rawChanges.added || [],
+                      modified: rawChanges.modified || [],
+                      deleted: rawChanges.deleted || [],
+                    }
+                  : undefined;
+
                 // ✅ 保存版本快照
                 saveVersion({
                   versionNumber: newVersion,
@@ -217,8 +282,7 @@ export function useChat() {
                   timestamp: Date.now(),
                   files: filesPayload.files,
                   fileCount: Object.keys(filesPayload.files).length,
-                  // TODO: 未来添加 diff 计算
-                  changes: undefined,
+                  changes,
                 });
 
                 console.log("[useChat] Version saved:", {
@@ -288,8 +352,8 @@ export function useChat() {
               (data as { skipGeneration?: boolean }).skipGeneration === true;
 
             if (nextType && nextType !== "done" && !shouldSkipNext) {
-              // 如果下一个步骤是 app（应用组装），设置组装状态
-              if (nextType === "app") {
+              // 如果下一个步骤是组装（app / modificationFiles），设置组装状态
+              if (nextType === "app" || nextType === "modificationFiles") {
                 setIsAssembling(true);
               }
 
@@ -309,6 +373,7 @@ export function useChat() {
               });
             }
           },
+          controller.signal,
         );
       } catch (error) {
         console.error("Generate App Error:", error);
@@ -320,6 +385,7 @@ export function useChat() {
           status: "error",
         });
       } finally {
+        abortRef.current = null;
         setLoading(false);
       }
     },
@@ -343,9 +409,21 @@ export function useChat() {
     ],
   );
 
+  /**
+   * 停止当前生成：
+   * 1. 通知后端取消 LangGraph 运行（避免继续消耗 LLM token）
+   * 2. 中断本地 SSE 读取，触发 stopped 事件
+   */
+  const stopGeneration = useCallback(() => {
+    const threadId = useChatStore.getState().getCurrentThreadId();
+    void stopChatStream(threadId);
+    abortRef.current?.abort();
+  }, []);
+
   return {
     messages,
     isLoading,
     sendMessage,
+    stopGeneration,
   };
 }

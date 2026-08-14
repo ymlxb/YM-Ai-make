@@ -8,12 +8,40 @@ import {
 } from "../config/mock.js";
 import { NODE_HANDLERS } from "../config/chat.js";
 import { generateChatAnswer } from "../services/chat/answer.js";
+import {
+  registerRun,
+  stopRun,
+  unregisterRun,
+  isRunStopped,
+} from "../services/chat/cancelRegistry.js";
+import {
+  saveProjectFiles,
+  loadProjectFiles,
+  getBaseProjectId,
+} from "../services/project/store.js";
 
 const router = express.Router();
 
-// 预构建两种 Agent（编译一次，复用多次）
+// 预构建三种 Agent（编译一次，复用多次）
 const traditionalAgent = buildAgent("traditional");
 const figmaAgent = buildAgent("figma");
+const modificationAgent = buildAgent("modification");
+
+/**
+ * 停止正在运行的生成任务
+ * 前端“停止生成”按钮会先调用本接口，再中断本地 SSE。
+ */
+router.post("/stop", (req: Request, res: Response) => {
+  const { threadId } = req.body || {};
+  if (!threadId || typeof threadId !== "string") {
+    return res.status(400).json({ ok: false, error: "missing threadId" });
+  }
+  const stopped = stopRun(threadId);
+  console.log(
+    `[Chat] Stop request for ${threadId}: ${stopped ? "aborted" : "not running"}`,
+  );
+  res.json({ ok: true, stopped });
+});
 
 router.post("/", async (req: Request, res: Response) => {
   // 设置 SSE 响应头
@@ -26,24 +54,75 @@ router.post("/", async (req: Request, res: Response) => {
   res.flushHeaders();
 
   let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let threadId = "";
+  let baseProjectId = "";
+  let signal: AbortSignal | undefined;
+  let finished = false;
 
   try {
-    const { messages, mockConfig: userMockConfig, projectId } = req.body;
+    const {
+      messages,
+      mockConfig: userMockConfig,
+      projectId,
+      files,
+    } = req.body;
     console.log("Received messages count:", messages?.length);
+    if (files) {
+      console.log("Received current files count:", Object.keys(files).length);
+    }
 
-    // 解析 Mock 配置 (仅 Traditional 流程使用)
+    // 解析 Mock 配置
     const mockConfigInput: MockConfig = userMockConfig || DEFAULT_MOCK_PRESET;
     const mockConfig = resolveMockConfig(mockConfigInput);
 
-    // ========== 路由适配层：统一分流输入 ==========
-    const routeResult = await resolveRouteAdapter({ messages, mockConfig });
-    const isFigmaFlow = routeResult.flow === "figma";
+    // 使用 projectId 作为 thread_id 实现项目隔离
+    threadId =
+      projectId ||
+      `project-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    baseProjectId = getBaseProjectId(threadId);
 
-    if (isFigmaFlow) {
+    console.log("Using thread_id (projectId):", threadId);
+
+    // ========== 运行注册 + 中断支持 ==========
+    const controller = registerRun(threadId);
+    signal = controller.signal;
+
+    // 客户端提前断开（刷新/关闭页面/主动取消）时，中断服务端运行
+    res.on("close", () => {
+      if (!finished && !signal?.aborted) {
+        console.log(`[Chat] Client disconnected, aborting run: ${threadId}`);
+        controller.abort();
+      }
+    });
+
+    // ========== 服务端记忆：加载项目当前文件 ==========
+    // 优先使用前端携带的 files；没有则从项目存储按 projectId 加载
+    const resolvedFiles =
+      files ?? (await loadProjectFiles(baseProjectId)) ?? undefined;
+    if (resolvedFiles && !files) {
+      console.log(
+        `[Chat] Loaded files from project store: ${Object.keys(resolvedFiles).length}`,
+      );
+    }
+
+    // ========== 路由适配层：统一分流输入 ==========
+    const routeResult = await resolveRouteAdapter({
+      messages,
+      mockConfig,
+      files: resolvedFiles,
+    });
+    const { flow } = routeResult;
+
+    if (flow === "figma") {
       console.log(`🎨 [Route] 使用 Figma 直连流程`);
       if (routeResult.meta?.figmaUrl) {
         console.log(`   URL: ${routeResult.meta.figmaUrl}`);
       }
+    } else if (flow === "modification") {
+      console.log(`✏️  [Route] 使用修改请求流程`);
+      console.log(
+        `   待修改文件数: ${routeResult.meta?.fileCount ?? "unknown"}`,
+      );
     } else {
       console.log(`📝 [Route] 使用 Traditional 流程`);
       console.log("Using mockConfig:", JSON.stringify(mockConfig));
@@ -58,20 +137,19 @@ router.post("/", async (req: Request, res: Response) => {
       }
     }, 10000);
 
-    // 使用 projectId 作为 thread_id 实现项目隔离
-    const threadId =
-      projectId ||
-      `project-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-    console.log("Using thread_id (projectId):", threadId);
-
     const config = {
       configurable: { thread_id: threadId },
       streamMode: "updates" as const,
+      signal,
     };
 
     // ========== 选择 Agent 并构造输入 ==========
-    const agent = isFigmaFlow ? figmaAgent : traditionalAgent;
+    const agent =
+      flow === "figma"
+        ? figmaAgent
+        : flow === "modification"
+          ? modificationAgent
+          : traditionalAgent;
     const input = routeResult.input;
 
     // 使用 stream 而不是 invoke
@@ -79,6 +157,12 @@ router.post("/", async (req: Request, res: Response) => {
     const stream = await agent.stream(input, config);
 
     for await (const chunk of stream) {
+      // 每处理一个节点前检查是否被中断
+      if (signal?.aborted || isRunStopped(threadId)) {
+        console.log(`[Chat] Run aborted, stopping stream: ${threadId}`);
+        break;
+      }
+
       console.log("Chunk received keys:", Object.keys(chunk));
 
       // LangGraph 的 stream 块通常是 { [nodeName]: nodeOutput }
@@ -130,6 +214,17 @@ router.post("/", async (req: Request, res: Response) => {
       });
       res.write(`data: ${sseMessage}\n\n`);
 
+      // ========== 服务端记忆：生成/修改完成后保存文件集 ==========
+      if (
+        (eventType === "files" ||
+          eventType === "figmaAssembly" ||
+          eventType === "modificationFiles") &&
+        payload?.files &&
+        typeof payload.files === "object"
+      ) {
+        await saveProjectFiles(baseProjectId, payload.files);
+      }
+
       // 立即刷新缓冲区 (如果环境支持 flush)
       if ((res as any).flush) {
         (res as any).flush();
@@ -152,22 +247,45 @@ router.post("/", async (req: Request, res: Response) => {
       }
     }
 
-    // 发送结束信号
-    res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+    // 发送结束信号（被中断则发送 stopped）
+    const wasStopped = signal?.aborted || isRunStopped(threadId);
+    if (!res.destroyed && !res.writableEnded) {
+      res.write(
+        `data: ${JSON.stringify(
+          wasStopped ? { type: "stopped" } : { type: "done" },
+        )}\n\n`,
+      );
+    }
     if (heartbeat) clearInterval(heartbeat);
     res.end();
   } catch (error) {
-    console.error("Error processing chat:", error);
-    // 发送错误信号
-    res.write(
-      `data: ${JSON.stringify({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Internal server error",
-      })}\n\n`,
-    );
+    const wasStopped = signal?.aborted || isRunStopped(threadId);
+    if (wasStopped) {
+      console.log(`[Chat] Run aborted, sending stopped: ${threadId}`);
+    } else {
+      console.error("Error processing chat:", error);
+    }
+    // 被中断发送 stopped，否则发送错误信号
+    if (!res.destroyed && !res.writableEnded) {
+      res.write(
+        `data: ${JSON.stringify(
+          wasStopped
+            ? { type: "stopped" }
+            : {
+                type: "error",
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : "Internal server error",
+              },
+        )}\n\n`,
+      );
+    }
     if (heartbeat) clearInterval(heartbeat);
     res.end();
+  } finally {
+    finished = true;
+    if (threadId) unregisterRun(threadId);
   }
 });
 

@@ -14,7 +14,7 @@ export interface StreamEvent {
  * 具体的事件类型枚举 (与后端 events 对应)
  * 使用 StepType 联合类型统一 Traditional 和 Figma 流程的步骤
  */
-export type StreamEventType = StepType | "done" | "error";
+export type StreamEventType = StepType | "done" | "error" | "stopped";
 
 /**
  * 具体的事件载荷可以根据需要在此扩展，
