@@ -73,7 +73,11 @@ export type NodeName =
   | "pageSubgraph"
   | "layoutNode"
   | "styleGenNode"
-  | "appGenNode";
+  | "appGenNode"
+  | "modificationAnalysisNode"
+  | "modificationLocateNode"
+  | "modificationApplyNode"
+  | "modificationAssembleNode";
 
 /** 闃舵鍚嶇О */
 export type PhaseName =
@@ -93,6 +97,11 @@ export const PHASE_NODES: Record<PhaseName, NodeName[]> = {
     "componentNode",
     "structureNode",
     "dependencyNode",
+    // Modification flow nodes (grouped here so global presets cover them)
+    "modificationAnalysisNode",
+    "modificationLocateNode",
+    "modificationApplyNode",
+    "modificationAssembleNode",
   ],
   foundation: ["typeNode", "utilsNode", "mockDataNode"],
   logic: ["serviceNode", "hooksNode"],

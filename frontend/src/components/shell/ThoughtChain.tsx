@@ -24,6 +24,19 @@ export function ThoughtChain({ thoughts }: ThoughtChainProps) {
   const { togglePhaseExpansion, toggleHistoryExpansion, currentFlow } =
     useChatStore();
 
+  const FLOW_BADGE: Record<string, { label: string; cls: string }> = {
+    figma: { label: "🎨 Figma 快速生成", cls: "bg-blue-50 text-blue-600" },
+    modification: {
+      label: "✏️ 修改请求",
+      cls: "bg-amber-50 text-amber-600",
+    },
+    traditional: {
+      label: "📝 标准流程",
+      cls: "bg-gray-100 text-gray-600",
+    },
+  };
+  const badge = currentFlow ? FLOW_BADGE[currentFlow] : null;
+
   if (!thoughts.length) return null;
 
   return (
@@ -32,13 +45,9 @@ export function ThoughtChain({ thoughts }: ThoughtChainProps) {
       {currentFlow && (
         <div className="text-xs text-gray-500 flex items-center gap-2">
           <span
-            className={`px-2 py-0.5 rounded ${
-              currentFlow === "figma"
-                ? "bg-blue-50 text-blue-600"
-                : "bg-gray-100 text-gray-600"
-            }`}
+            className={`px-2 py-0.5 rounded ${badge?.cls || "bg-gray-100 text-gray-600"}`}
           >
-            {currentFlow === "figma" ? "🎨 Figma 快速生成" : "📝 标准流程"}
+            {badge?.label || "处理中"}
           </span>
         </div>
       )}

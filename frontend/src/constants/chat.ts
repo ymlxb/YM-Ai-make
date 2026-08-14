@@ -24,6 +24,12 @@ export const FLOW_CONFIG: Record<FlowType, FlowConfig> = {
       "figma-assembly",
     ],
   },
+  modification: {
+    name: "修改请求",
+    description: "基于已有代码的增量修改",
+    initialStep: "modificationPlan",
+    phases: ["modification"],
+  },
 };
 
 // ============================================================================
@@ -46,6 +52,8 @@ export const PHASE_INFO: Record<
   "figma-parsing": { title: "解析阶段", order: 2, flow: "figma" },
   "figma-refactoring": { title: "重构阶段", order: 3, flow: "figma" },
   "figma-assembly": { title: "组装阶段", order: 4, flow: "figma" },
+  // 修改请求流程阶段
+  modification: { title: "修改执行", order: 1, flow: "modification" },
 };
 
 // 为了向后兼容，保留 PhaseName 类型别名
@@ -76,6 +84,13 @@ export const PHASE_NODES: Record<Phase, StepType[]> = {
   ],
   "figma-refactoring": ["figmaSectionNaming", "figmaComponentGen"],
   "figma-assembly": ["figmaAssembly"],
+  // 修改请求流程
+  modification: [
+    "modificationPlan",
+    "modificationTargets",
+    "modificationApplied",
+    "modificationFiles",
+  ],
 };
 
 /** 根据节点名称获取所属阶段（从 PHASE_NODES 反向计算） */
@@ -132,10 +147,19 @@ export const FIGMA_STEP_MAP: Record<string, StreamEventType> = {
   figmaAssembly: "done",
 };
 
-/** 统一的步骤流转（合并两个流程，保留 NEXT_STEP_MAP 名称向后兼容） */
+/** 修改请求流程步骤流转 */
+export const MODIFICATION_STEP_MAP: Record<string, StreamEventType> = {
+  modificationPlan: "modificationTargets",
+  modificationTargets: "modificationApplied",
+  modificationApplied: "modificationFiles",
+  modificationFiles: "done",
+};
+
+/** 统一的步骤流转（合并三个流程，保留 NEXT_STEP_MAP 名称向后兼容） */
 export const NEXT_STEP_MAP: Record<string, StreamEventType> = {
   ...TRADITIONAL_STEP_MAP,
   ...FIGMA_STEP_MAP,
+  ...MODIFICATION_STEP_MAP,
 };
 
 export const STEP_DEFINITIONS: Partial<Record<StreamEventType, StepContent>> = {
@@ -352,6 +376,66 @@ export const STEP_DEFINITIONS: Partial<Record<StreamEventType, StepContent>> = {
       success: (data: unknown) => {
         const d = data as { stats?: { totalFiles?: number } };
         return `项目组装完成，共 ${d?.stats?.totalFiles || 0} 个文件`;
+      },
+    },
+  },
+
+  // ==================== 修改请求流程步骤 ====================
+  modificationPlan: {
+    title: "修改分析",
+    description: {
+      pending: "AI 正在拆解您的修改请求...",
+      success: (data: unknown) => {
+        const d = data as {
+          summary?: string;
+          operations?: unknown[];
+        };
+        return `已生成修改方案：${d?.summary || "根据请求修改"}（${d?.operations?.length || 0} 个文件操作）`;
+      },
+    },
+  },
+  modificationTargets: {
+    title: "定位目标文件",
+    description: {
+      pending: "正在定位需要修改的文件...",
+      success: (data: unknown) => {
+        const d = data as unknown[];
+        return `已定位 ${Array.isArray(d) ? d.length : 0} 个目标文件`;
+      },
+    },
+  },
+  modificationApplied: {
+    title: "执行代码修改",
+    description: {
+      pending: "AI 正在逐文件重写代码...",
+      success: (data: unknown) => {
+        const d = data as Array<{ filePath?: string }>;
+        return `已完成 ${Array.isArray(d) ? d.length : 0} 个文件的修改`;
+      },
+    },
+  },
+  modificationFiles: {
+    title: "重新组装项目",
+    description: {
+      pending: "正在合并修改结果并组装项目...",
+      success: (data: unknown) => {
+        const d = data as {
+          stats?: {
+            totalFiles?: number;
+            changes?: {
+              added?: string[];
+              modified?: string[];
+              deleted?: string[];
+            };
+          };
+        };
+        const changes = d?.stats?.changes;
+        const parts = [
+          changes?.added?.length ? `新增 ${changes.added.length}` : "",
+          changes?.modified?.length ? `修改 ${changes.modified.length}` : "",
+          changes?.deleted?.length ? `删除 ${changes.deleted.length}` : "",
+        ].filter(Boolean);
+        return `项目已更新，共 ${d?.stats?.totalFiles || 0} 个文件（${parts.join("，") || "无变化"}）`;
       },
     },
   },

@@ -2,7 +2,7 @@
 // 将 Traditional 流程和 Figma 流程独立分离，方便后续扩展
 
 /** 流程类型 */
-export type FlowType = "traditional" | "figma";
+export type FlowType = "traditional" | "figma" | "modification";
 
 // ============================================================================
 // Traditional 流程类型
@@ -60,18 +60,35 @@ export type FigmaPhase =
   | "figma-assembly";
 
 // ============================================================================
+// 修改请求流程类型
+// ============================================================================
+
+/** 修改请求流程的步骤类型 */
+export type ModificationStepType =
+  | "modificationPlan"
+  | "modificationTargets"
+  | "modificationApplied"
+  | "modificationFiles";
+
+/** 修改请求流程的阶段 */
+export type ModificationPhase = "modification";
+
+// ============================================================================
 // 统一类型（联合）
 // ============================================================================
 
 /** 所有步骤类型的联合 */
-export type StepType = TraditionalStepType | FigmaStepType;
+export type StepType =
+  | TraditionalStepType
+  | FigmaStepType
+  | ModificationStepType;
 
 /** 所有阶段类型的联合 */
-export type Phase = TraditionalPhase | FigmaPhase;
+export type Phase = TraditionalPhase | FigmaPhase | ModificationPhase;
 
 /** Figma URL 检测正则 */
 export const FIGMA_URL_REGEX =
-  /https?:\/\/([\w.-]+\.)?figma\.com\/(file|design|proto|board)\/[\w-]+/i;
+  /https?:\/\/([\w.-]+\.)?figma\.com\/(file|design|proto|board|site|community\/file)\/[\w-]+/i;
 
 /** 检测内容是否包含 Figma URL */
 export function isFigmaUrl(content: string): boolean {

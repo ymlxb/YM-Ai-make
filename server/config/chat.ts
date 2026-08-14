@@ -44,4 +44,26 @@ export const NODE_HANDLERS: Record<string, { type: string; key: string }> = {
   // Step 8: Assembly (确定性 - 组装，使用独立事件类型)
   assemblyNode: { type: "figmaAssembly", key: "files" },
   figmaPostProcessNode: { type: "figmaAssembly", key: "files" },
+
+  // ==================== 修改请求流程节点 ====================
+  // Step 1: 修改分析 (AI - 输出文件级操作计划)
+  modificationAnalysisNode: {
+    type: "modificationPlan",
+    key: "modificationPlan",
+  },
+  // Step 2: 目标定位 (确定性 - 输出目标文件快照)
+  modificationLocateNode: {
+    type: "modificationTargets",
+    key: "modificationTargets",
+  },
+  // Step 3: 修改执行 (AI - 输出整文件重写结果)
+  modificationApplyNode: {
+    type: "modificationApplied",
+    key: "updatedFiles",
+  },
+  // Step 4: 组装 (确定性 - 输出 Sandpack 文件集，使用独立事件类型避免与 files 冲突)
+  modificationAssembleNode: {
+    type: "modificationFiles",
+    key: "files",
+  },
 };

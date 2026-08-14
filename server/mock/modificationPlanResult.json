@@ -1,0 +1,11 @@
+{
+  "summary": "将首页主标题改为红色，并在 Hero 区域增加一个 CTA 按钮",
+  "operations": [
+    {
+      "action": "edit",
+      "filePath": "/App.tsx",
+      "reason": "首页主标题和 Hero 区域位于 App.tsx"
+    }
+  ],
+  "newDependencies": []
+}
