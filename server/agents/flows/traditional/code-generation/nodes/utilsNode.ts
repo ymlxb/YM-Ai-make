@@ -7,7 +7,7 @@ import { normalizeLLMResult } from "../../../../utils/codeNormalizer.js";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { T_Graph } from "../../../../shared/schemas/graphSchema.js";
 
-export async function utilsNode(state: T_Graph) {
+export async function utilsNode(state: T_Graph, config: any) {
   // 1. 获取目标任务
   // 从 Step 5 (Structure) 中筛选出需要生成的工具文件
   // generatedBy === "typeDefinition" 是不准确的逻辑，我们应该找 path 为 /lib/utils.ts 的文件
@@ -100,6 +100,7 @@ ${pagesList}
     // 使用重试机制调用模型
     const result = await withRetry(model, messages, {
       maxRetries: 3,
+      signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(
           `[UtilsNode] Retry attempt ${attempt} due to:`,

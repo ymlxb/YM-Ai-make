@@ -116,9 +116,6 @@ export function useChat() {
         attachments,
       };
 
-      // 获取当前完整的消息历史 (Store中的 + 当前这一条)
-      const currentHistory = [...useChatStore.getState().messages, userMessage];
-
       addMessage(userMessage);
 
       // 2. 初始化状态
@@ -187,7 +184,8 @@ export function useChat() {
 
         await generateAppStream(
           {
-            messages: currentHistory,
+            // 服务端负责管理历史：只发送最新一条消息，历史由服务端存储累积
+            messages: [userMessage],
             projectId: threadId, // ✅ 使用版本化的 threadId
             files: currentFiles,
           },

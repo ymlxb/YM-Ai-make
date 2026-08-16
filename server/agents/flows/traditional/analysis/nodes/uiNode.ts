@@ -1,4 +1,4 @@
-﻿import { UISchema } from "../schemas/uiSchema.js";
+import { UISchema } from "../schemas/uiSchema.js";
 import { UI_SYSTEM_PROMPT } from "../prompts/uiPrompts.js";
 import { getStructuredModel } from "../../../../utils/model.js";
 import { tryExecuteMock } from "../../../../utils/mock.js";
@@ -87,7 +87,7 @@ function buildFallbackUI(capabilities: any, intent: any) {
   };
 }
 
-export async function uiNode(state: any) {
+export async function uiNode(state: any, config: any) {
   const structuredModel = getStructuredModel(UISchema);
   const capabilities = state.capabilities;
 
@@ -133,6 +133,7 @@ ${analysisContext}`;
   try {
     const result = await withRetry(structuredModel, messages, {
       maxRetries: 2,
+      signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(
           `[UINode] Retry attempt ${attempt} due to:`,

@@ -1,4 +1,4 @@
-﻿import { AnalysisSchema } from "../schemas/analysisSchema.js";
+import { AnalysisSchema } from "../schemas/analysisSchema.js";
 import { ANALYSIS_SYSTEM_PROMPT } from "../prompts/analysisPrompts.js";
 import { getStructuredModel } from "../../../../utils/model.js";
 import { tryExecuteMock } from "../../../../utils/mock.js";
@@ -67,7 +67,7 @@ function buildCreateAnalysis(latestText: string) {
   };
 }
 
-export const analysisNode = async (state: any) => {
+export const analysisNode = async (state: any, config: any) => {
   const structuredModel = getStructuredModel(AnalysisSchema);
 
   let messages: BaseMessage[] = [];
@@ -116,6 +116,7 @@ export const analysisNode = async (state: any) => {
 
   const result = await withRetry(structuredModel, prompt, {
     maxRetries: 3,
+    signal: config?.signal,
     onRetry: (attempt, error) => {
       console.warn(
         `[AnalysisNode] Retry attempt ${attempt} due to:`,

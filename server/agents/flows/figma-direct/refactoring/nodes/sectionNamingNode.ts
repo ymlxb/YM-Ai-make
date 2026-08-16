@@ -26,7 +26,7 @@ import { withRetry } from "../../../../utils/retry.js";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import type { GeometryGroupOutput } from "../../parsing/schemas/parsingSchema.js";
 
-export const sectionNamingNode = async (state: any) => {
+export const sectionNamingNode = async (state: any, config: any) => {
   console.log("\n" + "=".repeat(80));
   console.log("🏷️ [SectionNamingNode] 开始 AI 命名");
   console.log("=".repeat(80));
@@ -71,6 +71,7 @@ export const sectionNamingNode = async (state: any) => {
   try {
     result = await withRetry(structuredModel, messages, {
       maxRetries: 2,
+      signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(
           `⚠️ [SectionNamingNode] 命名重试 ${attempt}: ${error.message}`,

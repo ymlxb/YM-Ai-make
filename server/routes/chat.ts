@@ -19,6 +19,10 @@ import {
   loadProjectFiles,
   getBaseProjectId,
 } from "../services/project/store.js";
+import {
+  appendMessages,
+  loadHistory,
+} from "../services/chat/historyStore.js";
 
 const router = express.Router();
 
@@ -83,6 +87,19 @@ router.post("/", async (req: Request, res: Response) => {
 
     console.log("Using thread_id (projectId):", threadId);
 
+    // ========== 服务端短期记忆：由服务端统一管理对话历史 ==========
+    // 前端只需发送最新一条消息；历史由本存储累积，并在共享 checkpointer 中按线程保留
+    const incomingMessages = Array.isArray(messages) ? messages : [];
+    const lastMessage =
+      incomingMessages.length > 0
+        ? incomingMessages[incomingMessages.length - 1]
+        : null;
+    if (lastMessage) {
+      await appendMessages(baseProjectId, [lastMessage]);
+    }
+    const historyMessages = await loadHistory(baseProjectId);
+    console.log(`[Chat] Server-managed history: ${historyMessages.length} messages`);
+
     // ========== 运行注册 + 中断支持 ==========
     const controller = registerRun(threadId);
     signal = controller.signal;
@@ -107,7 +124,7 @@ router.post("/", async (req: Request, res: Response) => {
 
     // ========== 路由适配层：统一分流输入 ==========
     const routeResult = await resolveRouteAdapter({
-      messages,
+      messages: historyMessages,
       mockConfig,
       files: resolvedFiles,
     });
@@ -137,8 +154,11 @@ router.post("/", async (req: Request, res: Response) => {
       }
     }, 10000);
 
+    // 共享 checkpointer 下按“流程-项目”命名空间隔离，
+    // 避免不同图（traditional/figma/modification）的状态 schema 互相冲突
+    const graphThreadId = `${flow}-${baseProjectId}`;
     const config = {
-      configurable: { thread_id: threadId },
+      configurable: { thread_id: graphThreadId },
       streamMode: "updates" as const,
       signal,
     };
@@ -232,9 +252,13 @@ router.post("/", async (req: Request, res: Response) => {
 
       if (nodeName === "analysisNode" && output.skipGeneration === true) {
         const answer = await generateChatAnswer({
-          messages,
+          messages: historyMessages,
           analysis: output.analysis,
+          signal,
         });
+        await appendMessages(baseProjectId, [
+          { id: crypto.randomUUID(), role: "assistant", content: answer },
+        ]);
         res.write(
           `data: ${JSON.stringify({
             type: "answer",

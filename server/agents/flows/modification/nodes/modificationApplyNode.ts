@@ -100,7 +100,7 @@ export default function ${componentName}() {
 `;
 }
 
-export async function modificationApplyNode(state: any) {
+export async function modificationApplyNode(state: any, config: any) {
   const targets: T_ModificationTarget[] = state.modificationTargets || [];
   const plan = state.modificationPlan || {};
   const request = getLastUserText(state.messages);
@@ -163,10 +163,13 @@ export async function modificationApplyNode(state: any) {
       });
 
       try {
-        const response = await model.invoke([
-          new SystemMessage(MODIFICATION_APPLY_SYSTEM_PROMPT),
-          new HumanMessage(humanPrompt),
-        ]);
+        const response = await model.invoke(
+          [
+            new SystemMessage(MODIFICATION_APPLY_SYSTEM_PROMPT),
+            new HumanMessage(humanPrompt),
+          ],
+          { signal: config?.signal },
+        );
 
         let content = stripCodeFence(
           extractTextContent(response.content),
@@ -185,6 +188,7 @@ export async function modificationApplyNode(state: any) {
         );
         return { filePath: target.filePath, content };
       } catch (error) {
+        if (config?.signal?.aborted) throw error;
         console.error(
           `  ✗ ${target.filePath} 修改失败:`,
           error instanceof Error ? error.message : error,

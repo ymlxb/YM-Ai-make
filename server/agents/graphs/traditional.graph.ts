@@ -3,9 +3,9 @@ import {
   StateGraph,
   START,
   END,
-  MemorySaver,
   Annotation,
 } from "@langchain/langgraph";
+import { checkpointer } from "../../services/chat/checkpointer.js";
 
 // Input Processing Phase
 import { intentNode } from "../flows/traditional/input-processing/nodes/intentNode.js";
@@ -40,8 +40,6 @@ import { pageGraph } from "./page.graph.js";
 
 // Mock utilities
 import { tryExecuteMock } from "../utils/mock.js";
-
-const checkpointer = new MemorySaver();
 
 const routeAfterAnalysis = (state: typeof GraphState.State) => {
   if (state.skipGeneration) {
@@ -104,10 +102,7 @@ export default function ${pageName}() {
 // 这解决了 LangGraph JS 在 StateGraph(ZodSchema) 模式下 Reducer 不生效的问题
 const GraphState = Annotation.Root({
   // 基础字段 (LastValue 模式 - 默认)
-  messages: Annotation<T_Graph["messages"]>({
-    reducer: (x, y) => x.concat(y),
-    default: () => [],
-  }),
+  messages: Annotation<T_Graph["messages"]>(),
   mockConfig: Annotation<T_Graph["mockConfig"]>(),
   textPrompt: Annotation<T_Graph["textPrompt"]>(),
   analysis: Annotation<T_Graph["analysis"]>(),
@@ -152,7 +147,10 @@ const GraphState = Annotation.Root({
 // 2. 调用子图
 // 3. 返回子图的 Output，供主图 reducer 合并
 
-const runComponentGraph = async (state: typeof GraphState.State) => {
+const runComponentGraph = async (
+  state: typeof GraphState.State,
+  config: any,
+) => {
   // Mock 模式检查
   const mockResult = await tryExecuteMock(
     state,
@@ -187,7 +185,9 @@ const runComponentGraph = async (state: typeof GraphState.State) => {
   // 2. 调用子图 (作为一个整体运行直到结束)
   let result;
   try {
-    result = await componentGraph.invoke(subgraphInput);
+    result = await componentGraph.invoke(subgraphInput, {
+      signal: config?.signal,
+    });
   } catch (error) {
     console.warn(
       "[MainGraph] Component subgraph fallback:",
@@ -204,7 +204,10 @@ const runComponentGraph = async (state: typeof GraphState.State) => {
   };
 };
 
-const runPageGraph = async (state: typeof GraphState.State) => {
+const runPageGraph = async (
+  state: typeof GraphState.State,
+  config: any,
+) => {
   // Mock 模式检查
   const mockResult = await tryExecuteMock(
     state,
@@ -238,7 +241,9 @@ const runPageGraph = async (state: typeof GraphState.State) => {
 
   let result;
   try {
-    result = await pageGraph.invoke(subgraphInput);
+    result = await pageGraph.invoke(subgraphInput, {
+      signal: config?.signal,
+    });
   } catch (error) {
     console.warn(
       "[MainGraph] Page subgraph fallback:",

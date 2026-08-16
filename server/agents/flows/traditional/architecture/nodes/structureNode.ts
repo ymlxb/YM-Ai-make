@@ -1,4 +1,4 @@
-﻿import { T_Graph } from "../../../../shared/schemas/graphSchema.js";
+import { T_Graph } from "../../../../shared/schemas/graphSchema.js";
 import { StructureSchema } from "../schemas/structureSchema.js";
 import { STRUCTURE_SYSTEM_PROMPT } from "../prompts/structurePrompts.js";
 import { getStructuredModel } from "../../../../utils/model.js";
@@ -126,7 +126,7 @@ function normalizeStructure(response: any) {
   };
 }
 
-export const structureNode = async (state: T_Graph) => {
+export const structureNode = async (state: T_Graph, config: any) => {
   const model = getStructuredModel(StructureSchema);
   const componentSpecs = state.components?.components || [];
   const dataModels = state.capabilities?.dataModels || [];
@@ -176,6 +176,7 @@ ${modelsList}`;
   try {
     const response = await withRetry(model, messages, {
       maxRetries: 2,
+      signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(
           `[StructureNode] Retry attempt ${attempt} due to:`,

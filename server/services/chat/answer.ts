@@ -39,6 +39,8 @@ function answerModelQuestion(text: string): string | null {
 export async function generateChatAnswer(params: {
   messages: any[];
   analysis?: AnalysisLike;
+  /** 传入 AbortSignal，QA 回答也可被中断 */
+  signal?: AbortSignal;
 }): Promise<string> {
   const text = getLastUserText(params.messages);
   const directAnswer = answerModelQuestion(text);
@@ -46,14 +48,17 @@ export async function generateChatAnswer(params: {
 
   try {
     const model = getMainModel();
-    const result = await model.invoke([
-      new SystemMessage(
-        "你是 YM Ai make 的助手。用户当前输入被识别为 QA 或闲聊，不要生成页面或代码。请用简短自然的中文直接回答。",
-      ),
-      new HumanMessage(
-        `用户输入：${text}\n意图类型：${params.analysis?.type || "UNKNOWN"}\n分析摘要：${params.analysis?.summary || ""}`,
-      ),
-    ]);
+    const result = await model.invoke(
+      [
+        new SystemMessage(
+          "你是 YM Ai make 的助手。用户当前输入被识别为 QA 或闲聊，不要生成页面或代码。请用简短自然的中文直接回答。",
+        ),
+        new HumanMessage(
+          `用户输入：${text}\n意图类型：${params.analysis?.type || "UNKNOWN"}\n分析摘要：${params.analysis?.summary || ""}`,
+        ),
+      ],
+      { signal: params.signal },
+    );
 
     const content = result.content;
     if (typeof content === "string") return content;

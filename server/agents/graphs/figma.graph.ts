@@ -23,9 +23,9 @@ import {
   StateGraph,
   START,
   END,
-  MemorySaver,
   Annotation,
 } from "@langchain/langgraph";
+import { checkpointer } from "../../services/chat/checkpointer.js";
 
 // ===== Input Phase Nodes =====
 import { figmaInputNode } from "../flows/figma-direct/input/nodes/figmaInputNode.js";
@@ -55,18 +55,13 @@ import type {
   T_GeneratedFile,
 } from "../flows/figma-direct/refactoring/schemas/refactoringSchema.js";
 
-const checkpointer = new MemorySaver();
-
 // ==================== Figma 图 State 定义 ====================
 
 const FigmaGraphState = Annotation.Root({
   // ---------- 通用输入 ----------
 
   /** 聊天历史记录，用于保留用户上下文与对话内容 */
-  messages: Annotation<any[]>({
-    reducer: (x, y) => x.concat(y),
-    default: () => [],
-  }),
+  messages: Annotation<any[]>(),
 
   /** Figma 设计稿 URL，作为整个 Figma 流程的主输入 */
   figmaUrl: Annotation<string>(),

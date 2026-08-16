@@ -1,4 +1,4 @@
-﻿import { CapabilitySchema } from "../schemas/capabilitySchema.js";
+import { CapabilitySchema } from "../schemas/capabilitySchema.js";
 import { CAPABILITY_SYSTEM_PROMPT } from "../prompts/capabilityPrompts.js";
 import { getStructuredModel } from "../../../../utils/model.js";
 import { tryExecuteMock } from "../../../../utils/mock.js";
@@ -138,7 +138,7 @@ function normalizeCapabilities(result: any, intentData: any) {
   return buildFallbackCapabilities(intentData);
 }
 
-export async function capabilityNode(state: any) {
+export async function capabilityNode(state: any, config: any) {
   const structuredModel = getStructuredModel(CapabilitySchema);
   const intentData = state.intent;
 
@@ -166,6 +166,7 @@ export async function capabilityNode(state: any) {
   try {
     const result = await withRetry(structuredModel, messages, {
       maxRetries: 2,
+      signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(
           `[CapabilityNode] Retry attempt ${attempt} due to:`,

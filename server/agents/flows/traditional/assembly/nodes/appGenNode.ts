@@ -52,7 +52,7 @@ ${routes || `        <Route path="/" element={<${firstPage} />} />`}
  * 根据页面列表和依赖信息，生成应用入口文件 App.tsx。
  * 负责配置路由系统和必要的 Context Provider。
  */
-export async function appGenNode(state: T_Graph) {
+export async function appGenNode(state: T_Graph, config: any) {
   // 1. MOCK MODE Logic (优先处理)
   const mockResult = await tryExecuteMock(
     state,
@@ -184,6 +184,7 @@ ${dependencyList.slice(0, 20).join(", ")}${dependencyList.length > 20 ? "..." : 
 
     const result = await withRetry(model, messages, {
       maxRetries: 3,
+      signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(
           `[AppGenNode] Retry attempt ${attempt} due to:`,

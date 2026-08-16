@@ -81,7 +81,7 @@ function isValidGeneratedCode(code: string): boolean {
   return hasCodeFeatures && hasJsx;
 }
 
-export const figmaInputNode = async (state: any) => {
+export const figmaInputNode = async (state: any, config: any) => {
   console.log("\n" + "=".repeat(80));
   console.log("🔧 [FigmaInputNode] 开始获取 Figma 设计数据 (REST API)");
   console.log("=".repeat(80));
@@ -234,7 +234,9 @@ export const figmaInputNode = async (state: any) => {
       // 注意：该版本 @langchain/openai 只从模型实例读取 maxTokens（invoke options 不生效），
       // 因此直接设置实例字段后再调用。
       model.maxTokens = 32768;
-      const response = await model.invoke(messages);
+      const response = await model.invoke(messages, {
+        signal: config?.signal,
+      });
       let code = extractTextContent(response.content);
       code = stripCodeFence(code);
 
@@ -256,6 +258,7 @@ export const figmaInputNode = async (state: any) => {
       console.log(`   ✅ 第 ${attempt} 次尝试生成成功 (${rawCode.length} 字符)`);
       break;
     } catch (error) {
+      if (config?.signal?.aborted) throw error;
       lastError = error instanceof Error ? error.message : String(error);
       console.warn(`   ⚠️ 第 ${attempt} 次生成失败: ${lastError}`);
     }

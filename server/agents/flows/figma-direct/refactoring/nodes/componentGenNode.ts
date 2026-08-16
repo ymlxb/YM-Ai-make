@@ -28,7 +28,7 @@ import {
 import { getModel } from "../../../../utils/model.js";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 
-export const componentGenNode = async (state: any) => {
+export const componentGenNode = async (state: any, config: any) => {
   console.log("\n" + "=".repeat(80));
   console.log("⚙️ [ComponentGenNode] 开始生成组件代码");
   console.log("=".repeat(80));
@@ -104,10 +104,13 @@ export const componentGenNode = async (state: any) => {
     );
 
     try {
-      const response = await model.invoke([
-        new SystemMessage(systemPrompt),
-        new HumanMessage(humanPrompt),
-      ]);
+      const response = await model.invoke(
+        [
+          new SystemMessage(systemPrompt),
+          new HumanMessage(humanPrompt),
+        ],
+        { signal: config?.signal },
+      );
 
       // 提取返回的代码（去除可能的 markdown 代码块包裹）
       let code =
@@ -131,6 +134,7 @@ export const componentGenNode = async (state: any) => {
         componentName: named.componentName,
       } as T_GeneratedFile;
     } catch (error) {
+      if (config?.signal?.aborted) throw error;
       console.error(
         `   ❌ ${named.componentName} 生成失败:`,
         error instanceof Error ? error.message : error,

@@ -10,11 +10,13 @@ export interface RetryOptions {
   onRetry?: (attempt: number, error: Error) => void;
   /** 自定义错误反馈消息生成器，默认使用通用提示 */
   formatErrorFeedback?: (error: Error) => string;
+  /** AbortSignal：用户中断时立即抛出、不再重试，让 LLM 调用可被取消 */
+  signal?: AbortSignal;
 }
 
 /** 可调用的模型接口 */
 interface InvokableModel<T> {
-  invoke: (messages: any[]) => Promise<T>;
+  invoke: (messages: any[], options?: any) => Promise<T>;
 }
 
 const DEFAULT_MAX_RETRIES = 3;
@@ -48,16 +50,29 @@ export async function withRetry<T>(
     maxRetries = DEFAULT_MAX_RETRIES,
     onRetry,
     formatErrorFeedback = defaultErrorFeedback,
+    signal,
   } = options;
 
   let lastError: Error | null = null;
   let currentMessages = [...messages];
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // 已被用户中断：直接抛出，不再发起调用
+    if (signal?.aborted) {
+      const abortError = new Error("Run aborted by user");
+      abortError.name = "AbortError";
+      throw abortError;
+    }
+
     try {
-      return await model.invoke(currentMessages);
+      return await model.invoke(currentMessages, { signal });
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+
+      // 中断引起的错误不做重试，原样抛出
+      if (signal?.aborted || lastError.name === "AbortError") {
+        throw lastError;
+      }
 
       if (attempt < maxRetries) {
         onRetry?.(attempt, lastError);

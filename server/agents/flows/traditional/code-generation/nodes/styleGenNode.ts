@@ -13,7 +13,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
  * 根据页面结构、组件列表和依赖信息，生成 styles.css 文件。
  * 该文件与 Tailwind CSS 互补，提供 CSS 变量、布局容器和动画效果。
  */
-export async function styleGenNode(state: T_Graph) {
+export async function styleGenNode(state: T_Graph, config: any) {
   // 1. MOCK MODE Logic (优先处理)
   const mockResult = await tryExecuteMock(
     state,
@@ -89,6 +89,7 @@ ${dependencyContext}
 
     const result = await withRetry(model, messages, {
       maxRetries: 3,
+      signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(
           `[StyleGenNode] Retry attempt ${attempt} due to:`,

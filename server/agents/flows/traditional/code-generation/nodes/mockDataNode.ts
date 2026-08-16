@@ -1,4 +1,4 @@
-﻿import { MockDataSchema } from "../schemas/mockDataSchema.js";
+import { MockDataSchema } from "../schemas/mockDataSchema.js";
 import { MOCK_DATA_SYSTEM_PROMPT } from "../prompts/mockDataPrompts.js";
 import { getStructuredModel } from "../../../../utils/model.js";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
@@ -65,7 +65,7 @@ App goals: ${(intent?.goals?.primary || []).join(", ")}
 Return only this file.`;
 }
 
-export async function mockDataNode(state: T_Graph) {
+export async function mockDataNode(state: T_Graph, config: any) {
   const structuredModel = getStructuredModel(MockDataSchema);
   const { capabilities, intent, structure } = state;
   const dataModels = capabilities?.dataModels || [];
@@ -98,6 +98,7 @@ export async function mockDataNode(state: T_Graph) {
 
       const result = await withRetry(structuredModel, messages, {
         maxRetries: 2,
+        signal: config?.signal,
         onRetry: (attempt, error) => {
           console.warn(
             `[MockDataNode] Retry ${model.modelId} attempt ${attempt} due to:`,

@@ -1,4 +1,4 @@
-﻿import { IntentSchema } from "../schemas/intentSchema.js";
+import { IntentSchema } from "../schemas/intentSchema.js";
 import { IntentPrompts } from "../prompts/intentPrompts.js";
 import { getStructuredModel } from "../../../../utils/model.js";
 import { tryExecuteMock } from "../../../../utils/mock.js";
@@ -73,7 +73,7 @@ function buildFallbackIntent(summary = "") {
   };
 }
 
-export async function intentNode(state: any) {
+export async function intentNode(state: any, config: any) {
   if (state.skipGeneration) {
     console.log("[IntentNode] skipGeneration=true, skipping.");
     return {
@@ -113,6 +113,7 @@ Never output array fields as quoted JSON strings.`,
   try {
     const result = await withRetry(structuredModel, prompt, {
       maxRetries: 2,
+      signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(
           `[IntentNode] Retry attempt ${attempt} due to:`,

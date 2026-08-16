@@ -77,7 +77,7 @@ function createFallbackComponentSpecs(ui: any, capabilities: any) {
   return { components: Array.from(components.values()) };
 }
 
-export async function componentNode(state: any) {
+export async function componentNode(state: any, config: any) {
   // 1. 获取模型
   const structuredModel = getStructuredModel(ComponentSchema);
 
@@ -144,6 +144,7 @@ export async function componentNode(state: any) {
   try {
     result = await withRetry(structuredModel, messages, {
       maxRetries: 1,
+      signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(
           `[ComponentNode] Retry attempt ${attempt} due to:`,

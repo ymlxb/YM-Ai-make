@@ -77,7 +77,7 @@ function normalizePlan(result: any): any {
   };
 }
 
-export async function modificationAnalysisNode(state: any) {
+export async function modificationAnalysisNode(state: any, config: any) {
   const currentFiles: Record<string, string> = state.currentFiles || {};
 
   if (Object.keys(currentFiles).length === 0) {
@@ -116,6 +116,7 @@ export async function modificationAnalysisNode(state: any) {
   try {
     const result = await withRetry(structuredModel, prompt, {
       maxRetries: 2,
+      signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(
           `[ModificationAnalysisNode] Retry attempt ${attempt} due to:`,

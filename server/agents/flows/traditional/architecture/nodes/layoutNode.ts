@@ -13,7 +13,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
  * 分析页面间的共享 UI 结构，生成可复用的 Layout 组件。
  * 输出 Layout 代码和路由嵌套结构映射。
  */
-export async function layoutNode(state: T_Graph) {
+export async function layoutNode(state: T_Graph, config: any) {
   // 1. MOCK MODE Logic (优先处理)
   const mockResult = await tryExecuteMock(
     state,
@@ -151,6 +151,7 @@ ${availableComponents.length > 0 ? availableComponents.join(", ") : "暂无可�
 
   const response = await withRetry(model, messages, {
     maxRetries: 3,
+    signal: config?.signal,
     onRetry: (attempt, error) => {
       console.warn(
         `[LayoutNode] Retry attempt ${attempt} due to:`,

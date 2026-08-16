@@ -1,4 +1,4 @@
-﻿import { ServiceSchema } from "../schemas/serviceSchema.js";
+import { ServiceSchema } from "../schemas/serviceSchema.js";
 import { LOGIC_SYSTEM_PROMPT } from "../prompts/servicePrompt.js";
 import { getStructuredModel } from "../../../../utils/model.js";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
@@ -46,7 +46,7 @@ ${utilsContext}
 Primary goals: ${(intent?.goals?.primary || []).join(", ")}`;
 }
 
-export async function serviceNode(state: T_Graph) {
+export async function serviceNode(state: T_Graph, config: any) {
   const structuredModel = getStructuredModel(ServiceSchema);
   const { capabilities, intent, mockData, utils, types } = state;
   const dataModels = capabilities?.dataModels || [];
@@ -87,6 +87,7 @@ export async function serviceNode(state: T_Graph) {
 
       const result = await withRetry(structuredModel, messages, {
         maxRetries: 2,
+        signal: config?.signal,
         onRetry: (attempt, error) => {
           console.warn(
             `[ServiceNode] Retry ${model.modelId} attempt ${attempt} due to:`,

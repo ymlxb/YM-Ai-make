@@ -19,9 +19,9 @@ import {
   StateGraph,
   START,
   END,
-  MemorySaver,
   Annotation,
 } from "@langchain/langgraph";
+import { checkpointer } from "../../services/chat/checkpointer.js";
 
 import { modificationAnalysisNode } from "../flows/modification/nodes/modificationAnalysisNode.js";
 import { modificationLocateNode } from "../flows/modification/nodes/modificationLocateNode.js";
@@ -34,18 +34,13 @@ import type {
   T_ModifiedFile,
 } from "../flows/modification/schemas/modificationSchema.js";
 
-const checkpointer = new MemorySaver();
-
 // ==================== Modification 图 State 定义 ====================
 
 const ModificationGraphState = Annotation.Root({
   // ---------- 通用输入 ----------
 
   /** 聊天历史记录（用于提取最近的修改请求） */
-  messages: Annotation<any[]>({
-    reducer: (x, y) => x.concat(y),
-    default: () => [],
-  }),
+  messages: Annotation<any[]>(),
 
   /** 分层 Mock 配置（由路由层解析为扁平 Record） */
   mockConfig: Annotation<Record<string, boolean> | undefined>(),

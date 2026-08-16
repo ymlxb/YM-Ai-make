@@ -1,4 +1,4 @@
-﻿import { T_Graph } from "../../../../shared/schemas/graphSchema.js";
+import { T_Graph } from "../../../../shared/schemas/graphSchema.js";
 import { TypeFileSchema } from "../schemas/typeSchema.js";
 import { TYPE_GENERATION_SYSTEM_PROMPT } from "../prompts/typePrompts.js";
 import { getStructuredModel } from "../../../../utils/model.js";
@@ -51,7 +51,7 @@ function buildFallbackTypeFile(fileNode: any, modelDef: any) {
   });
 }
 
-export async function typeNode(state: T_Graph) {
+export async function typeNode(state: T_Graph, config: any) {
   const targetFiles =
     state.structure?.files.filter((f) => f.generatedBy === "typeDefinition") ||
     [];
@@ -114,6 +114,7 @@ Return complete .ts file content with imports only when necessary.`;
 
       const result = await withRetry(model, messages, {
         maxRetries: 2,
+        signal: config?.signal,
         onRetry: (attempt, error) => {
           console.warn(
             `[TypeNode] Retry ${fileNode.path} attempt ${attempt} due to:`,

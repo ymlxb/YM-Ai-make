@@ -67,7 +67,10 @@ export const ComponentState = Annotation.Root({
 });
 
 // 2. 节点逻辑：单个组件生成器 (Worker Node)
-const generateComponentNode = async (state: typeof ComponentState.State) => {
+const generateComponentNode = async (
+  state: typeof ComponentState.State,
+  config: any,
+) => {
   const { targetComponent, context } = state;
   const { hooks, types, service, components } = context;
 
@@ -145,12 +148,16 @@ ${serviceContext}
 - 严禁 Mock 数据。
 `;
 
-      finalResult = await model.invoke([
-        { role: "system", content: COMP_GEN_SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ]);
+      finalResult = await model.invoke(
+        [
+          { role: "system", content: COMP_GEN_SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        { signal: config?.signal },
+      );
       break;
     } catch (e) {
+      if (config?.signal?.aborted) throw e;
       console.warn(`[ComponentGraph] Retry ${fileName} (${attempt}/3):`, e);
       lastError = e;
     }

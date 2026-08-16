@@ -68,7 +68,10 @@ export const PageState = Annotation.Root({
 });
 
 // 2. 节点逻辑：单个页面生成器 (Worker Node)
-const generatePageNode = async (state: typeof PageState.State) => {
+const generatePageNode = async (
+  state: typeof PageState.State,
+  config: any,
+) => {
   const { targetPage, context } = state;
   const { hooks, componentResult, types } = context;
 
@@ -148,12 +151,16 @@ ${componentsContext}
           `[PageGraph] Retry generating ${filePath} (Attempt ${attempt})...`,
         );
 
-      finalResult = await model.invoke([
-        { role: "system", content: PAGE_GEN_SYSTEM_PROMPT },
-        { role: "user", content: JSON.stringify(userInput, null, 2) },
-      ]);
+      finalResult = await model.invoke(
+        [
+          { role: "system", content: PAGE_GEN_SYSTEM_PROMPT },
+          { role: "user", content: JSON.stringify(userInput, null, 2) },
+        ],
+        { signal: config?.signal },
+      );
       break;
     } catch (e) {
+      if (config?.signal?.aborted) throw e;
       console.warn(`[PageGraph] Error generating ${filePath}:`, e);
       lastError = e;
     }

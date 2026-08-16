@@ -77,7 +77,7 @@ function createHookTargets(structureFiles: any[], dataModels: any[]) {
   return Array.from(targetMap.values());
 }
 
-export const hooksNode = async (state: T_Graph) => {
+export const hooksNode = async (state: T_Graph, config: any) => {
   // MOCK MODE Handling
   const mockResult = await tryExecuteMock(
     state,
@@ -160,6 +160,7 @@ ${baseContextPrompt}
       try {
         result = await withRetry(model, messages, {
           maxRetries: 2,
+          signal: config?.signal,
           onRetry: (attempt, error) => {
             console.warn(
               `[HooksNode] Retry ${filePath} attempt ${attempt} due to:`,
