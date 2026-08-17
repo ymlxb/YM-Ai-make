@@ -133,6 +133,12 @@ export function ChatPanel() {
   };
 
   const submitPrompt = (value: string) => {
+    // 任务运行中不允许发送新消息，避免打断正在进行的生成
+    if (isLoading) {
+      showToast("当前有任务正在生成，请先停止或等待完成。", "warning");
+      return;
+    }
+
     if (!value.trim() && attachedFiles.length === 0) return;
 
     const attachments = attachedFiles.map((file) => ({
@@ -317,6 +323,7 @@ export function ChatPanel() {
         <Sender
           value={inputValue}
           onChange={setInputValue}
+          disabled={isLoading}
           prefix={
             <button
               type="button"

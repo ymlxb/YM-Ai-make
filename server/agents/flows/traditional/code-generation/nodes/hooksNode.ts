@@ -5,6 +5,7 @@ import { getStructuredModel } from "../../../../utils/model.js";
 import { tryExecuteMock } from "../../../../utils/mock.js";
 import { withRetry } from "../../../../utils/retry.js";
 import { normalizeCodeFile } from "../../../../utils/codeNormalizer.js";
+import { mapWithConcurrency } from "../../../../utils/concurrency.js";
 
 function createFallbackHook(filePath: string, description = "") {
   const hookName =
@@ -134,9 +135,11 @@ ${intentContext}
 - 保证严格的 TypeScript 类型安全。
 `;
 
-  // 2. 并发生成 (Parallel Generation)
-  const results = await Promise.all(
-    targetFiles.map(async (fileItem: any) => {
+  // 2. 并发受限生成（最多 3 路同时调用 LLM，避免拖垮函数时长）
+  const results = await mapWithConcurrency(
+    targetFiles,
+    3,
+    async (fileItem: any) => {
       const filePath = typeof fileItem === "string" ? fileItem : fileItem.path;
       const fileDesc = typeof fileItem === "string" ? "" : fileItem.description;
 
@@ -190,7 +193,7 @@ ${baseContextPrompt}
       }
 
       return normalizeCodeFile(targetFile);
-    }),
+    },
   );
 
   console.log(`[HooksNode] Generated ${results.length} hook files total.`);

@@ -160,8 +160,12 @@ export async function componentNode(state: any, config: any) {
   // console.log("Component Result:", JSON.stringify(result, null, 2));
   console.log("--- Component Specs Generation End ---");
 
-  // 5. 返回
+  // 5. 返回（保证 components 一定是数组，缺字段时回退到 UI 派生规格）
+  const components = Array.isArray(result?.components)
+    ? result.components
+    : createFallbackComponentSpecs(ui, capabilities).components;
+
   return {
-    components: result,
+    components,
   };
 }

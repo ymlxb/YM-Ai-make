@@ -221,10 +221,11 @@ router.post("/", async (req: Request, res: Response) => {
       }
 
       if (payload === undefined) {
+        // 节点输出缺字段时仍推送事件（data: null），避免前端该步骤一直转圈
         console.warn(
-          `Skipping ${nodeName}: missing output key "${handler.key}"`,
+          `[Chat] ${nodeName} produced no "${handler.key}", emitting null event`,
         );
-        continue;
+        payload = null;
       }
 
       if (nodeName === "analysisNode" && output.skipGeneration === true) {

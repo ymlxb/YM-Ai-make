@@ -28,6 +28,7 @@ export function getDeepSeekModel() {
       apiKey: env("DEEPSEEK_API_KEY"),
       temperature: 0,
       maxTokens: 8192, // DeepSeek 最大支持 8K tokens
+      timeout: 120_000, // 单次请求超时，避免线上 Serverless 卡死
       configuration: {
         baseURL: env("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
       },
@@ -47,6 +48,7 @@ export function getGLMModel() {
       apiKey: env("GLM_API_KEY"),
       temperature: 0,
       maxTokens: 8192,
+      timeout: 120_000, // 单次请求超时，避免线上 Serverless 卡死
       configuration: {
         baseURL:
           env("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/"),
@@ -67,6 +69,7 @@ export function getQwenVisionModel() {
       apiKey: env("QWEN_API_KEY"),
       temperature: 0.1,
       maxTokens: 32768, // Qwen-VL-Max 支持 32K tokens
+      timeout: 60_000,
       configuration: {
         baseURL:
           env("QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
@@ -119,6 +122,7 @@ export function getLongOutputMainModel() {
       apiKey: env("GLM_API_KEY"),
       temperature: 0,
       maxTokens: 32768,
+      timeout: 120_000, // 单次请求超时，避免线上 Serverless 卡死
       configuration: {
         baseURL: env("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/"),
       },

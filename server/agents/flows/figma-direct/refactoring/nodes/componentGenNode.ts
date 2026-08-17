@@ -27,6 +27,7 @@ import {
 } from "../prompts/componentGenPrompts.js";
 import { getModel } from "../../../../utils/model.js";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
+import { mapWithConcurrency } from "../../../../utils/concurrency.js";
 
 export const componentGenNode = async (state: any, config: any) => {
   console.log("\n" + "=".repeat(80));
@@ -50,11 +51,14 @@ export const componentGenNode = async (state: any, config: any) => {
 
   console.log(`📊 [ComponentGenNode] 需要生成 ${namedSections.length} 个组件`);
 
-  // ========== 2. 对每个 Section 并行生成代码 ==========
+  // ========== 2. 对每个 Section 生成代码（限流并发，最多 3 路同时调用 LLM） ==========
   const systemPrompt = getComponentGenSystemPrompt();
   const model = getModel();
 
-  const genPromises = namedSections.map(async (named) => {
+  const genResults = await mapWithConcurrency(
+    namedSections,
+    3,
+    async (named) => {
     const section = sections.find((s) => s.index === named.index);
     if (!section) {
       console.warn(`⚠️ [ComponentGenNode] 未找到 Section ${named.index}`);
@@ -149,11 +153,10 @@ export const componentGenNode = async (state: any, config: any) => {
         componentName: named.componentName,
       } as T_GeneratedFile;
     }
-  });
+    },
+  );
 
-  // 并行等待所有生成完成
-  const results = await Promise.all(genPromises);
-  const generatedFiles = results.filter(Boolean) as T_GeneratedFile[];
+  const generatedFiles = genResults.filter(Boolean) as T_GeneratedFile[];
 
   // ========== 3. 打印结果 ==========
   console.log("\n✅ [ComponentGenNode] 组件代码生成完成");
