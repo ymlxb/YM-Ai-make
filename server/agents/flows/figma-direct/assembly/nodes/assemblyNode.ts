@@ -23,6 +23,7 @@ import {
   scanDependencies,
   buildPackageJson,
 } from "../../../../utils/dependencyBuilder.js";
+import { fixImportCaseInFiles } from "../../../../utils/importFixer.js";
 import type { T_GeneratedFile } from "../../refactoring/schemas/refactoringSchema.js";
 import type { AstParserOutput } from "../../parsing/schemas/parsingSchema.js";
 import type { T_SectionNamingOutput } from "../../refactoring/schemas/refactoringSchema.js";
@@ -207,6 +208,9 @@ export const assemblyNode = async (state: any) => {
     files["/package.json"] = JSON.stringify(finalPkg, null, 2);
     categories["config"] = 1;
   }
+
+  // ========== 9.6 修正相对 import 大小写/扩展名（Sandpack/Linux 大小写敏感） ==========
+  Object.assign(files, fixImportCaseInFiles(files));
 
   // ========== 10. 统计信息 ==========
   const totalFiles = Object.keys(files).length;

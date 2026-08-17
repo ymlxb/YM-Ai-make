@@ -6,6 +6,7 @@ import {
 import * as fs from "fs/promises";
 import * as path from "path";
 import { normalizeCodeContent } from "../../../../utils/codeNormalizer.js";
+import { fixImportCaseInFiles } from "../../../../utils/importFixer.js";
 
 /**
  * Step 16: 文件组装节点
@@ -216,6 +217,12 @@ root.render(
 
     addFile("/package.json", JSON.stringify(finalPkg, null, 2), "config");
   }
+
+  // ========================================
+  // 3.6 修正相对 import 大小写/扩展名（Sandpack/Linux 大小写敏感）
+  // ========================================
+  const fixedImportFiles = fixImportCaseInFiles(files);
+  Object.assign(files, fixedImportFiles);
 
   // ========================================
   // 4. 统计与日志

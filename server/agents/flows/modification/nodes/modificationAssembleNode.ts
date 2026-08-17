@@ -25,6 +25,7 @@ import {
   postProcessFiles,
   printFixReport,
 } from "../../../utils/ast/fixer.js";
+import { fixImportCaseInFiles } from "../../../utils/importFixer.js";
 import { normalizeFilePath } from "./modificationLocateNode.js";
 
 /** 修改流程的输出结构（兼容 Sandpack，同时携带变更统计） */
@@ -160,6 +161,9 @@ export async function modificationAssembleNode(state: any) {
   }
 
   // ===== 5. AST 后处理（复用传统流程 fixer） =====
+  // 5.0 先修正相对 import 大小写/扩展名（Sandpack/Linux 大小写敏感）
+  Object.assign(files, fixImportCaseInFiles(files));
+
   let astFixes = 0;
   let astIssues = 0;
   try {
