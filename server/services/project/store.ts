@@ -9,9 +9,17 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 
-const DATA_DIR = path.resolve(process.cwd(), "data/projects");
+// Vercel Serverless 的 cwd 只读，落到 /tmp（实例内可写）
+const DATA_DIR =
+  process.env.VERCEL === "1"
+    ? path.join(os.tmpdir(), "ym-ai-make", "projects")
+    : path.resolve(process.cwd(), "data/projects");
+
+// 进程内内存缓存：文件系统不可写时兜底
+const memoryCache = new Map<string, Record<string, string>>();
 
 /** 把任意 projectId 转成安全的文件名，防止路径穿越 */
 function safeFileName(projectId: string): string {
@@ -33,6 +41,7 @@ export async function saveProjectFiles(
   files: Record<string, string>,
 ): Promise<void> {
   if (!files || Object.keys(files).length === 0) return;
+  memoryCache.set(projectId, files);
 
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
@@ -61,6 +70,6 @@ export async function loadProjectFiles(
     const parsed = JSON.parse(content);
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
-    return null;
+    return memoryCache.get(projectId) || null;
   }
 }

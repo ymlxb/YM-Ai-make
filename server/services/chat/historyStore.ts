@@ -12,10 +12,20 @@
  */
 
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 
-const DATA_DIR = path.resolve(process.cwd(), "data/history");
+// Vercel Serverless 的 cwd 只读，落到 /tmp（实例内可写）；
+// 本地开发仍使用项目内 data/history
+const DATA_DIR =
+  process.env.VERCEL === "1"
+    ? path.join(os.tmpdir(), "ym-ai-make", "history")
+    : path.resolve(process.cwd(), "data/history");
 const MAX_MESSAGES = 30;
+
+// 进程内内存缓存：文件系统不可写（如 Serverless 只读/冷启动）时兜底，
+// 保证同一实例内的短期记忆仍可用
+const memoryCache = new Map<string, any[]>();
 
 function safeFileName(projectId: string): string {
   const safe = projectId.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -27,9 +37,11 @@ async function readHistory(projectId: string): Promise<any[]> {
     const filePath = path.join(DATA_DIR, safeFileName(projectId));
     const content = await fs.readFile(filePath, "utf-8");
     const parsed = JSON.parse(content);
-    return Array.isArray(parsed) ? parsed : [];
+    const list = Array.isArray(parsed) ? parsed : [];
+    memoryCache.set(projectId, list);
+    return list;
   } catch {
-    return [];
+    return memoryCache.get(projectId) || [];
   }
 }
 
@@ -72,6 +84,7 @@ export async function appendMessages(
   }
 
   const trimmed = history.slice(-MAX_MESSAGES);
+  memoryCache.set(projectId, trimmed);
 
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });

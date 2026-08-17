@@ -13,18 +13,20 @@ import {
 async function convertToLangChainMessages(
   rawMessages: any[],
 ): Promise<BaseMessage[]> {
-  return rawMessages.map((msg) => {
-    const textContent =
-      typeof msg.content === "string" && msg.content.trim()
-        ? msg.content
-        : "User uploaded an attachment.";
+  return rawMessages
+    .filter((msg): msg is any => !!msg && typeof msg === "object")
+    .map((msg) => {
+      const textContent =
+        typeof msg.content === "string" && msg.content.trim()
+          ? msg.content
+          : "User uploaded an attachment.";
 
-    if (msg.role === "user") {
-      return new HumanMessage(textContent);
-    }
+      if (msg.role === "user") {
+        return new HumanMessage(textContent);
+      }
 
-    return new AIMessage(textContent);
-  });
+      return new AIMessage(textContent);
+    });
 }
 
 function getLatestTextMessage(messages: any[] = []) {
@@ -75,7 +77,9 @@ export const analysisNode = async (state: any, config: any) => {
 
   if (state.messages && Array.isArray(state.messages)) {
     const lastMsg = state.messages[state.messages.length - 1];
-    messages = await convertToLangChainMessages([lastMsg]);
+    if (lastMsg) {
+      messages = await convertToLangChainMessages([lastMsg]);
+    }
   }
 
   const prompt = [new SystemMessage(ANALYSIS_SYSTEM_PROMPT), ...messages];

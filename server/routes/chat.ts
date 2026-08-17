@@ -97,7 +97,15 @@ router.post("/", async (req: Request, res: Response) => {
     if (lastMessage) {
       await appendMessages(baseProjectId, [lastMessage]);
     }
-    const historyMessages = await loadHistory(baseProjectId);
+    const loadedHistory = await loadHistory(baseProjectId);
+    // Serverless 冷启动/文件系统只读时历史可能为空，回退到本次携带的最后一条消息，
+    // 避免图流程收到空 messages 导致节点崩溃
+    const historyMessages =
+      loadedHistory.length > 0
+        ? loadedHistory
+        : lastMessage
+          ? [lastMessage]
+          : [];
     console.log(`[Chat] Server-managed history: ${historyMessages.length} messages`);
 
     // ========== 运行注册 + 中断支持 ==========
