@@ -216,12 +216,25 @@ export function useChat() {
                 message?: string;
                 data?: { message?: string };
               };
+              // 定位当前卡住的步骤，让错误提示更有上下文
+              const currentThoughts =
+                useChatStore.getState().messageThoughts[assistantId] || [];
+              const pendingStep = [...currentThoughts]
+                .reverse()
+                .find((t) => t.status === "pending");
+              const stepLabel =
+                pendingStep && typeof pendingStep.title === "string"
+                  ? pendingStep.title
+                  : "";
+              const errorText =
+                payload.data?.message || payload.message || "未知错误";
               addThought(assistantId, {
                 // 传入 messageId
                 key: `error-${Date.now()}`,
-                title: "发生错误",
-                description:
-                  payload.data?.message || payload.message || "未知错误",
+                title: stepLabel ? `${stepLabel}失败` : "发生错误",
+                description: `${errorText}${
+                  stepLabel ? `（失败步骤：${stepLabel}）` : ""
+                }。可稍后重试，或点击“停止生成”后重新发起。`,
                 status: "error",
               });
               return;
