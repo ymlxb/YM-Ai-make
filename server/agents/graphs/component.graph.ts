@@ -120,7 +120,7 @@ const generateComponentNode = async (
   let finalResult;
   let lastError;
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const userPrompt = `
 当前任务: 生成组件文件 "${filePath}"

@@ -88,7 +88,7 @@ ${dependencyContext}
     ];
 
     const result = await withRetry(model, messages, {
-      maxRetries: 3,
+      maxRetries: 2,
       signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(

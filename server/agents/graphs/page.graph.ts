@@ -144,7 +144,7 @@ ${componentsContext}
   let finalResult;
   let lastError;
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       if (attempt > 1)
         console.log(

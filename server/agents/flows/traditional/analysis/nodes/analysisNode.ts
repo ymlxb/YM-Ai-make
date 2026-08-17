@@ -119,7 +119,7 @@ export const analysisNode = async (state: any, config: any) => {
   console.log("--- User Message Analysis Start ---");
 
   const result = await withRetry(structuredModel, prompt, {
-    maxRetries: 3,
+      maxRetries: 2,
     signal: config?.signal,
     onRetry: (attempt, error) => {
       console.warn(

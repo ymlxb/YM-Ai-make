@@ -99,7 +99,7 @@ ${pagesList}
 
     // 使用重试机制调用模型
     const result = await withRetry(model, messages, {
-      maxRetries: 3,
+      maxRetries: 2,
       signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(

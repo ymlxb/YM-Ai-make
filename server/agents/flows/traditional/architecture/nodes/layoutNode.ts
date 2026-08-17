@@ -150,7 +150,7 @@ ${availableComponents.length > 0 ? availableComponents.join(", ") : "暂无可�
   ];
 
   const response = await withRetry(model, messages, {
-    maxRetries: 3,
+      maxRetries: 2,
     signal: config?.signal,
     onRetry: (attempt, error) => {
       console.warn(

@@ -183,7 +183,7 @@ ${dependencyList.slice(0, 20).join(", ")}${dependencyList.length > 20 ? "..." : 
     ];
 
     const result = await withRetry(model, messages, {
-      maxRetries: 3,
+      maxRetries: 2,
       signal: config?.signal,
       onRetry: (attempt, error) => {
         console.warn(
