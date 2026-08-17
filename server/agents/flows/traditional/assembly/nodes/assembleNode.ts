@@ -7,6 +7,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { normalizeCodeContent } from "../../../../utils/codeNormalizer.js";
 import { fixImportCaseInFiles } from "../../../../utils/importFixer.js";
+import { sanitizeSandboxCode } from "../../../../utils/sandboxSanitizer.js";
 
 /**
  * Step 16: 文件组装节点
@@ -223,6 +224,8 @@ root.render(
   // ========================================
   const fixedImportFiles = fixImportCaseInFiles(files);
   Object.assign(files, fixedImportFiles);
+  // 3.7 移除 Next.js 专用库（next-themes / next/*），保证沙箱可编译
+  Object.assign(files, sanitizeSandboxCode(files));
 
   // ========================================
   // 4. 统计与日志

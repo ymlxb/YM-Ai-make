@@ -196,6 +196,21 @@ export const STRING_LITERAL_RULES = `
 `;
 
 /**
+ * Sandbox 兼容规则 - 禁止 Next.js 专用 API
+ * 预览环境是纯浏览器沙箱（Vite/esbuild），解析不到 next/* 模块会编译失败
+ */
+export const SANDBOX_COMPATIBILITY_RULES = `
+【Sandbox 兼容规则 - 必须严格遵守】
+生成代码运行在纯浏览器沙箱（非 Next.js）环境，禁止使用任何 Next.js 专用 API：
+
+1. **禁止 import next-themes**（ThemeProvider 等），暗色/主题切换不是必要功能
+2. **禁止 import 任何 next/* 模块**：
+   - ❌ next/script, next/image, next/link, next/router, next/head, next/dynamic, next/navigation
+   - ✅ 图片用普通 <img>；跳转用 react-router-dom 的 Link/useNavigate
+3. **只使用通用 React + 常见 UI 库**（lucide-react、sonner、recharts 等）
+`;
+
+/**
  * 组合所有代码质量规则
  */
 export const CODE_QUALITY_RULES = `
@@ -204,6 +219,8 @@ ${NULL_SAFETY_RULES}
 ${DEFENSIVE_RENDERING_RULES}
 
 ${STRING_LITERAL_RULES}
+
+${SANDBOX_COMPATIBILITY_RULES}
 `;
 
 /**
