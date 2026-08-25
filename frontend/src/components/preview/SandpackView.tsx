@@ -157,6 +157,7 @@ function SandpackContent({
   const pendingRefresh = useRef(false);
   const [isFileTreeOpen, setIsFileTreeOpen] = useState(true);
   const hasNotifiedReady = useRef(false);
+  const [compileTick, setCompileTick] = useState(0);
 
   // 生成文件到达后强制重新编译，确保预览切换到生成的项目
   // （Provider 通过 key 重挂载，这里再加一道保险）
@@ -168,6 +169,15 @@ function SandpackContent({
       sandpack.runSandpack();
     }
   }, [generatedFiles, sandpack]);
+
+  // 诊断日志：状态变化一目了然
+  useEffect(() => {
+    console.log(
+      `[Sandpack] status=${sandpack.status} error=${
+        sandpack.error ? "yes" : "no"
+      } files=${generatedFiles ? Object.keys(generatedFiles).length : 0}`,
+    );
+  }, [sandpack.status, sandpack.error, generatedFiles]);
 
   // ✨ 监听 Sandpack 预览 iframe 加载完成
   useEffect(() => {
@@ -264,8 +274,61 @@ function SandpackContent({
         <SandpackPreview
           style={{ height: "100%" }}
           showOpenInCodeSandbox={false}
-          showRefreshButton={true}
+          showRefreshButton={false}
         />
+
+        {/* 编译状态条：让沙箱编译结果可见 */}
+        <div className="absolute bottom-2 left-2 z-30 flex items-center gap-2">
+          {(() => {
+            const hasError = !!sandpack.error;
+            const isRunning = sandpack.status === "running";
+            const isDone = sandpack.status === "done";
+            const isTimeout = sandpack.status === "timeout";
+            const label = hasError
+              ? "编译失败"
+              : isRunning
+                ? "编译中..."
+                : isTimeout
+                  ? "编译超时"
+                  : isDone
+                    ? "编译成功"
+                    : "待编译";
+            const cls = hasError
+              ? "bg-red-50 text-red-600"
+              : isRunning
+                ? "bg-blue-50 text-blue-600"
+                : "bg-gray-100 text-gray-600";
+
+            return (
+              <div
+                className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium shadow-sm ${cls}`}
+              >
+                {label}
+              </div>
+            );
+          })()}
+          <button
+            type="button"
+            onClick={() => {
+              setCompileTick((t) => t + 1);
+              sandpack.runSandpack();
+            }}
+            className="rounded-full border border-[#dfe5ef] bg-white px-3 py-1 text-xs font-medium text-[#334155] shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+            title="手动重新编译"
+          >
+            重新编译
+          </button>
+          {compileTick > 0 && (
+            <span className="text-xs text-gray-400">已手动重编 {compileTick} 次</span>
+          )}
+        </div>
+
+        {/* 编译错误详情 */}
+        {sandpack.error?.message && (
+          <div className="absolute bottom-12 left-2 right-2 z-30 max-h-40 overflow-auto rounded-lg border border-red-200 bg-white p-3 text-xs leading-5 text-red-600 shadow-lg">
+            编译错误：{sandpack.error.message}
+          </div>
+        )}
       </div>
       <div
         className={viewMode === "code" ? "h-full" : "hidden"}

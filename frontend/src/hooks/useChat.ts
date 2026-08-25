@@ -265,8 +265,10 @@ export function useChat() {
                 Object.keys(filesPayload.files).length > 0
               ) {
                 console.log(
-                  "[useChat] Setting generated files:",
+                  "[useChat] files event -> setGeneratedFiles:",
                   Object.keys(filesPayload.files).length,
+                  "files, eventType:",
+                  type,
                 );
                 setGeneratedFiles(filesPayload.files);
 
