@@ -25,6 +25,7 @@ import {
 } from "../../../../utils/dependencyBuilder.js";
 import { fixImportCaseInFiles } from "../../../../utils/importFixer.js";
 import { sanitizeSandboxCode } from "../../../../utils/sandboxSanitizer.js";
+import { repairGeneratedCode } from "../../../../utils/syntaxGuard.js";
 import type { T_GeneratedFile } from "../../refactoring/schemas/refactoringSchema.js";
 import type { AstParserOutput } from "../../parsing/schemas/parsingSchema.js";
 import type { T_SectionNamingOutput } from "../../refactoring/schemas/refactoringSchema.js";
@@ -214,6 +215,9 @@ export const assemblyNode = async (state: any) => {
   Object.assign(files, fixImportCaseInFiles(files));
   // ========== 9.7 移除 Next.js 专用库（next-themes / next/*），保证沙箱可编译 ==========
   Object.assign(files, sanitizeSandboxCode(files));
+  // ========== 9.8 语法校验与修复：保证生成项目一定可编译 ==========
+  const syntaxResult = repairGeneratedCode(files);
+  Object.assign(files, syntaxResult.files);
 
   // ========== 10. 统计信息 ==========
   const totalFiles = Object.keys(files).length;

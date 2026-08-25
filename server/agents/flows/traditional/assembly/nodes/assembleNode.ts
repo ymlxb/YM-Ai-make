@@ -8,6 +8,7 @@ import * as path from "path";
 import { normalizeCodeContent } from "../../../../utils/codeNormalizer.js";
 import { fixImportCaseInFiles } from "../../../../utils/importFixer.js";
 import { sanitizeSandboxCode } from "../../../../utils/sandboxSanitizer.js";
+import { repairGeneratedCode } from "../../../../utils/syntaxGuard.js";
 
 /**
  * Step 16: 文件组装节点
@@ -226,6 +227,14 @@ root.render(
   Object.assign(files, fixedImportFiles);
   // 3.7 移除 Next.js 专用库（next-themes / next/*），保证沙箱可编译
   Object.assign(files, sanitizeSandboxCode(files));
+  // 3.8 语法校验与修复：保证生成项目一定可编译
+  const syntaxResult = repairGeneratedCode(files);
+  Object.assign(files, syntaxResult.files);
+  if (syntaxResult.repairedCount + syntaxResult.replacedCount > 0) {
+    console.log(
+      `[AssembleNode] 语法卫士：修复 ${syntaxResult.repairedCount} 个，兜底 ${syntaxResult.replacedCount} 个`,
+    );
+  }
 
   // ========================================
   // 4. 统计与日志

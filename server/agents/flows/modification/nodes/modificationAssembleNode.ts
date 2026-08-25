@@ -27,6 +27,7 @@ import {
 } from "../../../utils/ast/fixer.js";
 import { fixImportCaseInFiles } from "../../../utils/importFixer.js";
 import { sanitizeSandboxCode } from "../../../utils/sandboxSanitizer.js";
+import { repairGeneratedCode } from "../../../utils/syntaxGuard.js";
 import { normalizeFilePath } from "./modificationLocateNode.js";
 
 /** 修改流程的输出结构（兼容 Sandpack，同时携带变更统计） */
@@ -166,6 +167,9 @@ export async function modificationAssembleNode(state: any) {
   Object.assign(files, fixImportCaseInFiles(files));
   // 5.1 移除 Next.js 专用库（next-themes / next/*），保证沙箱可编译
   Object.assign(files, sanitizeSandboxCode(files));
+  // 5.2 语法校验与修复：保证修改后的项目一定可编译
+  const syntaxResult = repairGeneratedCode(files);
+  Object.assign(files, syntaxResult.files);
 
   let astFixes = 0;
   let astIssues = 0;
