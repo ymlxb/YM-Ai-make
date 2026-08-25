@@ -112,6 +112,7 @@ export function SandpackView() {
         bundlerTimeOut: Number.isFinite(SANDPACK_BUNDLER_TIMEOUT)
           ? SANDPACK_BUNDLER_TIMEOUT
           : 120000,
+        recompileMode: "immediate",
         externalResources: [TAILWIND_CDN_URL],
         visibleFiles: visibleFiles,
         activeFile: "/App.tsx",
@@ -127,6 +128,7 @@ export function SandpackView() {
         >
           <SandpackContent
             viewMode={viewMode}
+            generatedFiles={generatedFiles}
             onReady={() => {
               // Sandpack 加载完成后关闭组装 loading
               if (isAssembling) {
@@ -143,9 +145,11 @@ export function SandpackView() {
 function SandpackContent({
   viewMode,
   onReady,
+  generatedFiles,
 }: {
   viewMode: "preview" | "code";
   onReady?: () => void;
+  generatedFiles?: Record<string, { code: string }> | null;
 }) {
   const { sandpack } = useSandpack();
   const { code } = useActiveCode();
@@ -153,6 +157,17 @@ function SandpackContent({
   const pendingRefresh = useRef(false);
   const [isFileTreeOpen, setIsFileTreeOpen] = useState(true);
   const hasNotifiedReady = useRef(false);
+
+  // 生成文件到达后强制重新编译，确保预览切换到生成的项目
+  // （Provider 通过 key 重挂载，这里再加一道保险）
+  const prevGeneratedHash = useRef<string | null>(null);
+  useEffect(() => {
+    const hash = generatedFiles ? hashFiles(generatedFiles) : null;
+    if (hash && hash !== prevGeneratedHash.current) {
+      prevGeneratedHash.current = hash;
+      sandpack.runSandpack();
+    }
+  }, [generatedFiles, sandpack]);
 
   // ✨ 监听 Sandpack 预览 iframe 加载完成
   useEffect(() => {
