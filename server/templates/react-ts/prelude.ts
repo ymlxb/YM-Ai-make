@@ -4,10 +4,12 @@
 
 function escapeHtml(value: string): string {
   return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    // 注意：不要写成字面 "&amp;" 等，前端 sandpackStore 会做 HTML 实体解码，
+    // 把 "&quot;" 变成裸引号导致字符串被截断；用拼接避免被误解码。
+    .replace(/&/g, "&" + "amp;")
+    .replace(/</g, "&" + "lt;")
+    .replace(/>/g, "&" + "gt;")
+    .replace(/"/g, "&" + "quot;");
 }
 
 function showFatalError(message: string, detail?: string) {
