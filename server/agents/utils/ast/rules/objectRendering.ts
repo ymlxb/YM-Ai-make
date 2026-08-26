@@ -81,7 +81,19 @@ export const objectRenderingRule: ASTRule = {
         const varName = expr.text;
         // 检查这个变量是否来自 .map() 回调，且数组元素类型是对象
         const mapInfo = findEnclosingMapCallback(expr, sourceFile, context);
-        if (mapInfo && !isJsxAttributeValue(jsxExpr)) {
+        // 也可能是从对象上解构出来的字段（如 const { stats } = item 后直接渲染 {stats}）
+        const fieldMeta = findFieldMeta(varName, context);
+        const localField = fieldMeta
+          ? null
+          : findLocalObjectField(expr, sourceFile, context);
+        const objectField = fieldMeta || localField;
+        const isObjectVariable =
+          mapInfo ||
+          (objectField &&
+            objectField.isObject &&
+            !objectField.isArray);
+
+        if (isObjectVariable && !isJsxAttributeValue(jsxExpr)) {
           const pos = getPosition(expr, sourceFile);
           issues.push({
             type: "object-in-jsx",
@@ -90,8 +102,9 @@ export const objectRenderingRule: ASTRule = {
             line: pos.line,
             column: pos.column,
             message: `变量 "${varName}" 可能是对象类型，直接渲染在 JSX 中`,
-            fixDescription: mapInfo.suggestedProperty
-              ? `追加 ?.${mapInfo.suggestedProperty}`
+            fixDescription: (mapInfo?.suggestedProperty ||
+              objectField?.suggestedProperty)
+              ? `追加 ?.${mapInfo?.suggestedProperty || objectField?.suggestedProperty}`
               : `追加 JSON.stringify()`,
           });
         }
@@ -151,13 +164,27 @@ export const objectRenderingRule: ASTRule = {
       // 修复标识符直接渲染
       if (ts.isIdentifier(expr)) {
         const mapInfo = findEnclosingMapCallback(expr, sourceFile, context);
-        if (mapInfo && !isJsxAttributeValue(jsxExpr)) {
+        const fieldMeta = findFieldMeta(expr.text, context);
+        const localField = fieldMeta
+          ? null
+          : findLocalObjectField(expr, sourceFile, context);
+        const objectField = fieldMeta || localField;
+        const isObjectVariable =
+          mapInfo ||
+          (objectField &&
+            objectField.isObject &&
+            !objectField.isArray);
+
+        if (isObjectVariable && !isJsxAttributeValue(jsxExpr)) {
           const exprText = expr.getText(sourceFile);
-          if (mapInfo.suggestedProperty) {
+          const suggestedProperty =
+            mapInfo?.suggestedProperty || objectField?.suggestedProperty || null;
+
+          if (suggestedProperty) {
             replacements.push({
               start: expr.getStart(sourceFile),
               end: expr.getEnd(),
-              text: `${exprText}?.${mapInfo.suggestedProperty}`,
+              text: `${exprText}?.${suggestedProperty}`,
             });
           } else {
             replacements.push({
@@ -203,6 +230,58 @@ function findFieldMeta(
   }
 
   return null;
+}
+
+/**
+ * 查找解构绑定中声明的对象变量
+ * 支持 const { improvementMetrics } = item 以及重命名形式
+ * const { improvementMetrics: stats } = item
+ */
+function findLocalObjectField(
+  identifier: ts.Identifier,
+  sourceFile: ts.SourceFile,
+  context: RuleContext,
+): {
+  isObject: boolean;
+  isArray: boolean;
+  typeName: string;
+  suggestedProperty: string | null;
+} | null {
+  let matchedField: {
+    isObject: boolean;
+    isArray: boolean;
+    typeName: string;
+    suggestedProperty: string | null;
+  } | null = null;
+
+  walk(sourceFile, (node) => {
+    if (matchedField) return;
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isObjectBindingPattern(node.name)
+    ) {
+      for (const element of node.name.elements) {
+        if (!ts.isBindingElement(element) || !ts.isIdentifier(element.name)) {
+          continue;
+        }
+
+        if (element.name.text !== identifier.text) continue;
+
+        const propertyName = element.propertyName
+          ? element.propertyName.getText(sourceFile)
+          : element.name.text;
+        const fieldMeta = findFieldMeta(propertyName, context);
+
+        if (fieldMeta) {
+          matchedField = fieldMeta;
+          return;
+        }
+      }
+    }
+  });
+
+  return matchedField;
 }
 
 /**

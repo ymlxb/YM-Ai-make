@@ -301,13 +301,23 @@ export function buildPackageJson(
 ): any {
   const templateDeps = templatePackageJson.dependencies || {};
 
-  // 合并策略：模板版本优先（防止降级核心库）
-  const mergedDependencies = { ...templateDeps };
+  // 只保留代码实际 import 的依赖，避免把模板里未使用的大包一起装进 Sandpack
+  const mergedDependencies: Record<string, string> = {};
   const addedDeps: Record<string, string> = {};
 
+  // react / react-dom 是运行时必需项，即使扫描遗漏也保留
+  for (const pkg of ["react", "react-dom"]) {
+    if (scannedDeps[pkg]) {
+      mergedDependencies[pkg] = scannedDeps[pkg];
+    } else if (templateDeps[pkg]) {
+      mergedDependencies[pkg] = templateDeps[pkg];
+    }
+  }
+
   for (const [pkg, version] of Object.entries(scannedDeps)) {
-    if (!mergedDependencies[pkg]) {
-      mergedDependencies[pkg] = version;
+    // 模板版本优先，防止降级核心库
+    mergedDependencies[pkg] = templateDeps[pkg] || version;
+    if (!templateDeps[pkg]) {
       addedDeps[pkg] = version;
       console.log(`[DependencyBuilder] Adding: ${pkg}@${version}`);
     }
@@ -317,6 +327,7 @@ export function buildPackageJson(
     packageJson: {
       ...templatePackageJson,
       dependencies: mergedDependencies,
+      devDependencies: {},
     },
     dependencies: addedDeps,
     reason: "基于代码 import 语句自动分析，程序化推断依赖",
