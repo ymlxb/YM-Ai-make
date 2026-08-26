@@ -115,6 +115,12 @@ export function repairGeneratedCode(
   let replacedCount = 0;
 
   for (const [filePath, code] of Object.entries(files)) {
+    // 入口文件由组装节点从模板统一回写，语法卫士不参与（避免误替换成不挂载的组件）
+    if (filePath === "/index.tsx" || filePath === "/prelude.ts") {
+      out[filePath] = code;
+      continue;
+    }
+
     if (!isCodeFile(filePath) || isParsable(code, filePath)) {
       out[filePath] = code;
       continue;

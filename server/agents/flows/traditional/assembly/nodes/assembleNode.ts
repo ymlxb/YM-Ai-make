@@ -236,6 +236,21 @@ root.render(
     );
   }
 
+  // 3.9 入口文件固定为模板（保证一定执行挂载 + 错误可见化）
+  try {
+    const templateDir = path.resolve(process.cwd(), "templates/react-ts");
+    files["/prelude.ts"] = await fs.readFile(
+      path.join(templateDir, "prelude.ts"),
+      "utf-8",
+    );
+    files["/index.tsx"] = await fs.readFile(
+      path.join(templateDir, "index.tsx"),
+      "utf-8",
+    );
+  } catch (error) {
+    console.warn("[AssembleNode] 入口模板读取失败，沿用当前内容:", error);
+  }
+
   // ========================================
   // 4. 统计与日志
   // ========================================

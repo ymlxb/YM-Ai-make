@@ -218,6 +218,19 @@ export const assemblyNode = async (state: any) => {
   // ========== 9.8 语法校验与修复：保证生成项目一定可编译 ==========
   const syntaxResult = repairGeneratedCode(files);
   Object.assign(files, syntaxResult.files);
+  // ========== 9.9 入口文件固定为模板（保证一定执行挂载 + 错误可见化） ==========
+  try {
+    files["/prelude.ts"] = fs.readFileSync(
+      path.join(templateDir, "prelude.ts"),
+      "utf-8",
+    );
+    files["/index.tsx"] = fs.readFileSync(
+      path.join(templateDir, "index.tsx"),
+      "utf-8",
+    );
+  } catch (error) {
+    console.warn("⚠️ [FigmaAssemblyNode] 入口模板读取失败，沿用当前内容:", error);
+  }
 
   // ========== 10. 统计信息 ==========
   const totalFiles = Object.keys(files).length;

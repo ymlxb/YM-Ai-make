@@ -47,7 +47,13 @@ interface ModificationOutput {
 }
 
 /** 模板兜底：保证项目入口与依赖声明始终存在 */
-const TEMPLATE_BASE_FILES = ["index.tsx", "package.json", "App.tsx", "styles.css"];
+const TEMPLATE_BASE_FILES = [
+  "index.tsx",
+  "prelude.ts",
+  "package.json",
+  "App.tsx",
+  "styles.css",
+];
 
 function getCategory(filePath: string): string {
   if (filePath === "/package.json") return "config";
@@ -170,6 +176,11 @@ export async function modificationAssembleNode(state: any) {
   // 5.2 语法校验与修复：保证修改后的项目一定可编译
   const syntaxResult = repairGeneratedCode(files);
   Object.assign(files, syntaxResult.files);
+  // 5.3 入口文件固定为模板（保证一定执行挂载 + 错误可见化）
+  const entryIndex = await readTemplateFile("index.tsx");
+  const entryPrelude = await readTemplateFile("prelude.ts");
+  if (entryIndex) files["/index.tsx"] = entryIndex;
+  if (entryPrelude) files["/prelude.ts"] = entryPrelude;
 
   let astFixes = 0;
   let astIssues = 0;
